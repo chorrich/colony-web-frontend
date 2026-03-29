@@ -1,8 +1,0 @@
-{
-  "name": "colony-web-frontend",
-  "version": "1.0.0",
-  "description": "Colony Web App",
-  "scripts": {
-    "build": "echo 'Static build'"
-  }
-}

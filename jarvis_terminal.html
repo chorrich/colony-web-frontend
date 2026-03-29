@@ -556,7 +556,7 @@
             // Label
             ctx.font = 'bold 12px Inter, sans-serif';
             ctx.fillStyle = obBorderColor;
-            var obLabelText = d.isBuy ? 'Demand Zone (OB)' : 'Supply Zone (OB)';
+            var obLabelText = d.label || (d.isBuy ? 'Demand Zone' : 'Supply Zone');
             ctx.fillText(obLabelText, 8, obBoxTop + 16);
 
             // ===== 2. TP ZONE BOX (Entry ↔ TP) — Green Box =====
@@ -616,6 +616,7 @@
 
         var currentSymbol = 'XAUUSD';
         var currentTimeframe = 'H1';
+        var lastTechnique = null; // Smart Rotation Memory
 
         function switchTimeframe(tf, btn) {
             currentTimeframe = tf;
@@ -676,7 +677,7 @@
                 const res = await fetch(API_URL + '/terminal-chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, symbol: currentSymbol, timeframe: currentTimeframe })
+                    body: JSON.stringify({ message: text, symbol: currentSymbol, timeframe: currentTimeframe, last_technique: lastTechnique })
                 });
                 const result = await res.json();
                 var el = document.getElementById(loadingId);
@@ -687,6 +688,7 @@
                     var html = '';
                     if (r.strategy) html += '<div class="strategy-tag">' + r.strategy + '</div>';
                     html += '<div>' + r.text + '</div>';
+                    if (r.last_technique) lastTechnique = r.last_technique;
 
                     if (r.action) {
                         html += '<div class="action-box">';
@@ -719,7 +721,8 @@
                             ob_time: r.drawings.ob_time,
                             zone_top: r.drawings.zone_top || null,
                             zone_bottom: r.drawings.zone_bottom || null,
-                            isBuy: r.drawings.isBuy !== undefined ? r.drawings.isBuy : r.action.type.includes('BUY')
+                            isBuy: r.drawings.isBuy !== undefined ? r.drawings.isBuy : r.action.type.includes('BUY'),
+                            label: r.drawings.label
                         };
                         drawSMCOverlay(smcDrawings);
                     }
