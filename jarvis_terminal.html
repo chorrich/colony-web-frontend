@@ -494,16 +494,12 @@
             // Responsive resize
             window.addEventListener('resize', function() {
                 chart.resize();
-                resizeOverlayCanvas();
-                if (smcDrawings) drawSMCOverlay(smcDrawings);
+                if (smcDrawings) requestAnimationFrame(function() { drawSMCOverlay(smcDrawings); });
             });
 
-            // Redraw SMC zones when user scrolls/zooms the chart
-            chart.subscribeAction('onScroll', function() {
-                if (smcDrawings) drawSMCOverlay(smcDrawings);
-            });
-            chart.subscribeAction('onZoom', function() {
-                if (smcDrawings) drawSMCOverlay(smcDrawings);
+            // Redraw SMC zones whenever chart view changes (scroll, zoom, etc.)
+            chart.subscribeAction('onVisibleRangeChange', function() {
+                if (smcDrawings) requestAnimationFrame(function() { drawSMCOverlay(smcDrawings); });
             });
         }
 
@@ -520,104 +516,91 @@
             var ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Get chart's visible price range from the Y axis
-            var dataList = chart.getDataList();
-            if (!dataList || dataList.length < 2) return;
+            // Use KLineChart's convertToPixel for EXACT price → pixel (no manual guessing)
+            var pxEntry = chart.convertToPixel({ value: d.entry }, { paneId: 'candle_pane' });
+            var pxSL = chart.convertToPixel({ value: d.sl }, { paneId: 'candle_pane' });
+            var pxTP = chart.convertToPixel({ value: d.tp }, { paneId: 'candle_pane' });
 
-            // Find visible price range by checking all visible candles
-            var visibleRange = chart.getVisibleRange(); // { from, to, realFrom, realTo }
-            if (!visibleRange) return;
+            if (!pxEntry || !pxSL || !pxTP) return;
+            if (pxEntry.y === undefined || pxSL.y === undefined || pxTP.y === undefined) return;
 
-            var minPrice = Infinity, maxPrice = -Infinity;
-            for (var i = visibleRange.from; i <= Math.min(visibleRange.to, dataList.length - 1); i++) {
-                if (dataList[i]) {
-                    if (dataList[i].low < minPrice) minPrice = dataList[i].low;
-                    if (dataList[i].high > maxPrice) maxPrice = dataList[i].high;
-                }
-            }
-            if (minPrice === Infinity) return;
+            var yEntry = pxEntry.y;
+            var ySL = pxSL.y;
+            var yTP = pxTP.y;
 
-            // Add 5% padding like the chart does
-            var range = maxPrice - minPrice;
-            maxPrice += range * 0.05;
-            minPrice -= range * 0.05;
-            range = maxPrice - minPrice;
+            // Chart drawing area width (Y-axis is on the right side)
+            var chartW = canvas.width - 60;
 
-            // Chart area dimensions (exclude Y-axis area ~60px on right, X-axis ~30px at bottom)
-            var yAxisWidth = 60;
-            var xAxisHeight = 30;
-            var chartW = canvas.width - yAxisWidth;
-            var chartH = canvas.height - xAxisHeight;
-
-            // Price to Y pixel
-            function priceToY(price) {
-                return chartH - ((price - minPrice) / range) * chartH;
-            }
-
-            // Timestamp to X pixel
-            var visibleCount = visibleRange.to - visibleRange.from + 1;
-            var barWidth = chartW / visibleCount;
-
-            function timestampToX(ts) {
-                // Find the index of closest data point
-                for (var i = visibleRange.from; i <= Math.min(visibleRange.to, dataList.length - 1); i++) {
-                    if (dataList[i] && dataList[i].timestamp >= ts) {
-                        return (i - visibleRange.from) * barWidth;
-                    }
-                }
-                return chartW; // If beyond visible, draw to the edge
-            }
-
-            // ---- Draw Order Block Box ----
-            var y1 = priceToY(d.entry);
-            var y2 = priceToY(d.sl);
-            var x1 = d.ob_time ? timestampToX(d.ob_time) : 0;
-            var x2 = chartW; // extend to right edge
-
-            var boxY = Math.min(y1, y2);
-            var boxH = Math.abs(y2 - y1);
+            // ===== 1. ORDER BLOCK BOX (Entry ↔ SL) =====
+            var obBoxTop = Math.min(yEntry, ySL);
+            var obBoxH = Math.abs(ySL - yEntry);
+            var obColor = d.isBuy ? 'rgba(56, 189, 248, 0.18)' : 'rgba(239, 68, 68, 0.18)';
+            var obBorderColor = d.isBuy ? '#38bdf8' : '#ef4444';
 
             // Filled rectangle
-            ctx.fillStyle = d.isBuy ? 'rgba(56, 189, 248, 0.18)' : 'rgba(239, 68, 68, 0.18)';
-            ctx.fillRect(x1, boxY, x2 - x1, boxH);
-
-            // Border of rectangle
-            ctx.strokeStyle = d.isBuy ? '#38bdf8' : '#ef4444';
+            ctx.fillStyle = obColor;
+            ctx.fillRect(0, obBoxTop, chartW, obBoxH);
+            // Border
+            ctx.strokeStyle = obBorderColor;
             ctx.lineWidth = 1.5;
-            ctx.strokeRect(x1, boxY, x2 - x1, boxH);
-
+            ctx.strokeRect(0, obBoxTop, chartW, obBoxH);
             // Label
-            ctx.font = 'bold 11px Inter, sans-serif';
-            ctx.fillStyle = d.isBuy ? '#38bdf8' : '#ef4444';
-            ctx.fillText(d.isBuy ? '🟦 Demand Zone (OB)' : '🟥 Supply Zone (OB)', x1 + 6, boxY + 14);
+            ctx.font = 'bold 12px Inter, sans-serif';
+            ctx.fillStyle = obBorderColor;
+            var obLabelText = d.isBuy ? 'Demand Zone (OB)' : 'Supply Zone (OB)';
+            ctx.fillText(obLabelText, 8, obBoxTop + 16);
 
-            // ---- Draw TP Line ----
-            var yTP = priceToY(d.tp);
-            ctx.setLineDash([8, 4]);
+            // ===== 2. TP ZONE BOX (Entry ↔ TP) — Green Box =====
+            var tpBoxTop = Math.min(yEntry, yTP);
+            var tpBoxH = Math.abs(yTP - yEntry);
+
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+            ctx.fillRect(0, tpBoxTop, chartW, tpBoxH);
             ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(0, yTP); ctx.lineTo(chartW, yTP); ctx.stroke();
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(0, tpBoxTop, chartW, tpBoxH);
+            ctx.font = 'bold 12px Inter, sans-serif';
             ctx.fillStyle = '#10b981';
-            ctx.font = 'bold 11px Inter, sans-serif';
-            ctx.fillText('TP ' + d.tp.toFixed(2), chartW - 100, yTP - 5);
+            ctx.fillText('Take Profit Zone', 8, tpBoxTop + 16);
 
-            // ---- Draw ENTRY Line ----
-            var yEntry = priceToY(d.entry);
-            ctx.setLineDash([4, 4]);
-            ctx.strokeStyle = d.isBuy ? '#38bdf8' : '#ef4444';
+            // ===== 3. HORIZONTAL LEVEL LINES (on top of boxes) =====
+            // Entry line
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = obBorderColor;
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(0, yEntry); ctx.lineTo(chartW, yEntry); ctx.stroke();
-            ctx.fillStyle = d.isBuy ? '#38bdf8' : '#ef4444';
-            ctx.fillText('ENTRY ' + d.entry.toFixed(2), chartW - 120, yEntry - 5);
+            // Entry label
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px Inter, sans-serif';
+            var entryLabelW = ctx.measureText('ENTRY ' + d.entry.toFixed(2)).width + 12;
+            ctx.fillStyle = obBorderColor;
+            ctx.fillRect(chartW - entryLabelW - 4, yEntry - 16, entryLabelW + 4, 18);
+            ctx.fillStyle = '#fff';
+            ctx.fillText('ENTRY ' + d.entry.toFixed(2), chartW - entryLabelW, yEntry - 2);
 
-            // ---- Draw SL Line ----
-            var ySL = priceToY(d.sl);
+            // SL line
             ctx.setLineDash([]);
             ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(0, ySL); ctx.lineTo(chartW, ySL); ctx.stroke();
+            // SL label
+            var slLabelW = ctx.measureText('SL ' + d.sl.toFixed(2)).width + 12;
             ctx.fillStyle = '#ef4444';
-            ctx.fillText('SL ' + d.sl.toFixed(2), chartW - 100, ySL + 14);
+            ctx.fillRect(chartW - slLabelW - 4, ySL + 2, slLabelW + 4, 18);
+            ctx.fillStyle = '#fff';
+            ctx.fillText('SL ' + d.sl.toFixed(2), chartW - slLabelW, ySL + 16);
+
+            // TP line
+            ctx.setLineDash([8, 4]);
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, yTP); ctx.lineTo(chartW, yTP); ctx.stroke();
+            // TP label
+            var tpLabelW = ctx.measureText('TP ' + d.tp.toFixed(2)).width + 12;
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(chartW - tpLabelW - 4, yTP - 16, tpLabelW + 4, 18);
+            ctx.fillStyle = '#fff';
+            ctx.fillText('TP ' + d.tp.toFixed(2), chartW - tpLabelW, yTP - 2);
 
             ctx.setLineDash([]);
         }
