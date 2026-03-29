@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <!-- TradingView Lightweight Charts (pinned to v4.1.1 for stable candlestick API) -->
-    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- KLineChart for Advanced Professional Charting (Supports Shapes/Drawings) -->
+    <script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.min.js"></script>
     
     <style>
         :root {
@@ -429,7 +429,7 @@
                     <button class="tf-btn" onclick="switchTimeframe('D1', this)">D1</button>
                 </div>
             </div>
-            <div id="tv-chart"></div>
+            <div id="tv-chart" style="width:100%; height:100%;"></div>
         </section>
 
         <!-- Right: Chat Area -->
@@ -467,29 +467,22 @@
     <script>
         const API_URL = "https://web-production-dae6e.up.railway.app";
         let chart = null;
-        let candleSeries = null;
-        let drawnLines = [];
 
         function initChart() {
             const domElement = document.getElementById('tv-chart');
-            // Force explicit pixel dimensions (Safari flex workaround)
-            const rect = domElement.getBoundingClientRect();
-            const w = Math.max(rect.width, 300);
-            const h = Math.max(rect.height, 300);
-
-            chart = LightweightCharts.createChart(domElement, {
-                width: w,
-                height: h,
-                layout: { background: { type: 'solid', color: '#0a0e17' }, textColor: '#9ca3af', fontFamily: 'Inter' },
-                grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
-                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-                rightPriceScale: { borderColor: '#1f2937' },
-                timeScale: { borderColor: '#1f2937', timeVisible: true }
-            });
-
-            candleSeries = chart.addCandlestickSeries({
-                upColor: '#10b981', downColor: '#ef4444', borderDownColor: '#ef4444',
-                borderUpColor: '#10b981', wickDownColor: '#7f1d1d', wickUpColor: '#064e3b'
+            // Init KLineChart
+            chart = klinecharts.init('tv-chart', {
+                styles: {
+                    grid: { horizontal: { color: '#1f2937' }, vertical: { color: '#1f2937' } },
+                    candle: {
+                        type: 'candle_solid',
+                        bar: { upColor: '#10b981', downColor: '#ef4444', noChangeColor: '#888888', upBorderColor: '#10b981', downBorderColor: '#ef4444', noChangeBorderColor: '#888888', upWickColor: '#10b981', downWickColor: '#ef4444', noChangeWickColor: '#888888' }
+                    },
+                    yAxis: { axisLine: { color: '#1f2937' }, tickText: { color: '#9ca3af' } },
+                    xAxis: { axisLine: { color: '#1f2937' }, tickText: { color: '#9ca3af' } },
+                    separator: { color: '#1f2937' },
+                    crosshair: { horizontal: { lineColor: '#38bdf8' }, vertical: { lineColor: '#38bdf8' } }
+                }
             });
 
             // Load real data from Railway backend
@@ -497,8 +490,7 @@
 
             // Responsive resize
             window.addEventListener('resize', function() {
-                var r2 = domElement.getBoundingClientRect();
-                chart.applyOptions({ width: r2.width, height: r2.height });
+                chart.resize();
             });
         }
 
@@ -515,33 +507,27 @@
 
         async function loadChartData(symbol, timeframe) {
             document.getElementById('live-price').innerText = 'Loading...';
+            chart.clearData();
             try {
                 var res = await fetch(API_URL + '/chart-data?symbol=' + symbol + '&timeframe=' + timeframe);
                 var result = await res.json();
                 if (result.status === 'ok' && result.candles && result.candles.length > 0) {
-                    candleSeries.setData(result.candles);
-                    chart.timeScale().fitContent();
+                    var formatData = result.candles.map(c => ({
+                        timestamp: c.time * 1000,
+                        open: c.open,
+                        high: c.high,
+                        low: c.low,
+                        close: c.close,
+                        volume: 0
+                    }));
+                    chart.applyNewData(formatData);
                     document.getElementById('live-price').innerText = result.current_price.toFixed(2);
                 } else {
                     document.getElementById('live-price').innerText = 'No data';
                 }
             } catch(e) {
-                // Fallback: generate demo data if server is down
-                console.warn('API unreachable, using demo data:', e);
-                var data = [];
-                var time = Math.floor(Date.now() / 1000) - 360000;
-                var price = 3080.00;
-                for (var i = 0; i < 100; i++) {
-                    var o = price;
-                    var h2 = o + Math.random() * 8;
-                    var l2 = o - Math.random() * 8;
-                    var c = (o + h2 + l2) / 3 + (Math.random() * 4 - 2);
-                    data.push({ time: time + i * 3600, open: o, high: Math.max(o, c, h2), low: Math.min(o, c, l2), close: c });
-                    price = c;
-                }
-                candleSeries.setData(data);
-                chart.timeScale().fitContent();
-                document.getElementById('live-price').innerText = price.toFixed(2) + ' (demo)';
+                console.warn('API fetch error:', e);
+                document.getElementById('live-price').innerText = 'Failed to load';
             }
         }
 
@@ -602,11 +588,60 @@
                     addMessage('', false, html);
 
                     if (r.drawings && r.drawings.entry) {
-                        drawnLines.forEach(function(l) { candleSeries.removePriceLine(l); });
-                        drawnLines = [];
-                        drawnLines.push(candleSeries.createPriceLine({ price: r.drawings.entry, color: '#38bdf8', lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: 'ENTRY' }));
-                        drawnLines.push(candleSeries.createPriceLine({ price: r.drawings.sl, color: '#ef4444', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: 'SL' }));
-                        drawnLines.push(candleSeries.createPriceLine({ price: r.drawings.tp, color: '#10b981', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: 'TP' }));
+                        chart.removeOverlay(); // Clear previous drawings
+                        
+                        // Get current chart data to align boxes
+                        var dataList = chart.getDataList();
+                        if(dataList && dataList.length > 20) {
+                            var startPoint = dataList[dataList.length - 20];
+                            var currentPoint = dataList[dataList.length - 1];
+
+                            // Draw Area/Rectangle for Order Block
+                            var boxColor = r.action.type.includes('BUY') ? 'rgba(56, 189, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+                            var borderColor = r.action.type.includes('BUY') ? '#38bdf8' : '#ef4444';
+                            var zoneLabel = r.action.type.includes('BUY') ? 'Demand Zone' : 'Supply Zone';
+
+                            // Draw Order Block Rectangle covering SL to ENTRY
+                            chart.createOverlay({
+                                name: 'rect',
+                                extendData: zoneLabel,
+                                points: [
+                                    { timestamp: startPoint.timestamp, value: r.drawings.sl },
+                                    { timestamp: currentPoint.timestamp, value: r.drawings.entry }
+                                ],
+                                styles: {
+                                    polygon: { color: boxColor, style: 'fill' },
+                                }
+                            });
+
+                            // Ensure points array defines start and end
+                            var pStart = { timestamp: startPoint.timestamp };
+                            var pEnd = { timestamp: currentPoint.timestamp };
+
+                            // Target line (TP)
+                            chart.createOverlay({
+                                name: 'segment',
+                                extendData: 'TP',
+                                points: [ { ...pStart, value: r.drawings.tp }, { ...pEnd, value: r.drawings.tp } ],
+                                styles: { line: { color: '#10b981', style: 'solid', size: 2 } }
+                            });
+                            
+                            // Entry line
+                            chart.createOverlay({
+                                name: 'segment',
+                                extendData: 'ENTRY',
+                                points: [ { ...pStart, value: r.drawings.entry }, { ...pEnd, value: r.drawings.entry } ],
+                                styles: { line: { color: borderColor, style: 'dashed', size: 2 } }
+                            });
+                            
+                            // SL line
+                            chart.createOverlay({
+                                name: 'segment',
+                                extendData: 'SL',
+                                points: [ { ...pStart, value: r.drawings.sl }, { ...pEnd, value: r.drawings.sl } ],
+                                styles: { line: { color: '#ef4444', style: 'solid', size: 2 } }
+                            });
+                        }
                     }
                 }
             } catch (e) {
