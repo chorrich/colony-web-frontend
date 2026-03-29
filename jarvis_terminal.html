@@ -590,11 +590,18 @@
                     if (r.drawings && r.drawings.entry) {
                         chart.removeOverlay(); // Clear previous drawings
                         
-                        // Get current chart data to align boxes
+                        // Get current chart data
                         var dataList = chart.getDataList();
-                        if(dataList && dataList.length > 20) {
-                            var startPoint = dataList[dataList.length - 20];
+                        if(dataList && dataList.length > 5) {
                             var currentPoint = dataList[dataList.length - 1];
+                            
+                            // Determine Start Timestamp
+                            var tStart = r.drawings.ob_time || dataList[Math.max(0, dataList.length - 24)].timestamp;
+                            
+                            // Project the end timestamp into the future (e.g. + 20 candles worth of time based on timeframe)
+                            var currentTfMap = { 'M1': 60, 'M5': 300, 'M15': 900, 'M30': 1800, 'H1': 3600, 'H4': 14400, 'D1': 86400 };
+                            var tfSec = currentTfMap[currentTimeframe] || 3600;
+                            var tEnd = currentPoint.timestamp + (tfSec * 24 * 1000); // Exent 24 candles into future
 
                             // Draw Area/Rectangle for Order Block
                             var boxColor = r.action.type.includes('BUY') ? 'rgba(56, 189, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)';
@@ -606,39 +613,35 @@
                                 name: 'rect',
                                 extendData: zoneLabel,
                                 points: [
-                                    { timestamp: startPoint.timestamp, value: r.drawings.sl },
-                                    { timestamp: currentPoint.timestamp, value: r.drawings.entry }
+                                    { timestamp: tStart, value: r.drawings.sl },
+                                    { timestamp: tEnd, value: r.drawings.entry }
                                 ],
                                 styles: {
-                                    polygon: { color: boxColor, style: 'fill' },
+                                    polygon: { color: boxColor, style: 'fill' }
                                 }
                             });
 
-                            // Ensure points array defines start and end
-                            var pStart = { timestamp: startPoint.timestamp };
-                            var pEnd = { timestamp: currentPoint.timestamp };
-
                             // Target line (TP)
                             chart.createOverlay({
-                                name: 'segment',
+                                name: 'rayLine',
                                 extendData: 'TP',
-                                points: [ { ...pStart, value: r.drawings.tp }, { ...pEnd, value: r.drawings.tp } ],
+                                points: [ { timestamp: tStart, value: r.drawings.tp }, { timestamp: tEnd, value: r.drawings.tp } ],
                                 styles: { line: { color: '#10b981', style: 'solid', size: 2 } }
                             });
                             
                             // Entry line
                             chart.createOverlay({
-                                name: 'segment',
+                                name: 'rayLine',
                                 extendData: 'ENTRY',
-                                points: [ { ...pStart, value: r.drawings.entry }, { ...pEnd, value: r.drawings.entry } ],
+                                points: [ { timestamp: tStart, value: r.drawings.entry }, { timestamp: tEnd, value: r.drawings.entry } ],
                                 styles: { line: { color: borderColor, style: 'dashed', size: 2 } }
                             });
                             
                             // SL line
                             chart.createOverlay({
-                                name: 'segment',
+                                name: 'rayLine',
                                 extendData: 'SL',
-                                points: [ { ...pStart, value: r.drawings.sl }, { ...pEnd, value: r.drawings.sl } ],
+                                points: [ { timestamp: tStart, value: r.drawings.sl }, { timestamp: tEnd, value: r.drawings.sl } ],
                                 styles: { line: { color: '#ef4444', style: 'solid', size: 2 } }
                             });
                         }
