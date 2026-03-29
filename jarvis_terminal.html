@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jarvis Trading Terminal | The Colony</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    
+    <style>
+        :root {
+            --bg-dark: #0a0e17;
+            --bg-panel: #111827;
+            --border-color: #1f2937;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --jarvis-blue: #0ea5e9;
+            --jarvis-neon: #38bdf8;
+            --jarvis-glow: rgba(56, 189, 248, 0.5);
+            --profit-green: #10b981;
+            --loss-red: #ef4444;
+            --gold: #fbbf24;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ---------------- HEADER ---------------- */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: linear-gradient(90deg, #0a0e17 0%, #111827 100%);
+            border-bottom: 1px solid var(--jarvis-glow);
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.1);
+            flex-shrink: 0;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .header-logo svg {
+            filter: drop-shadow(0 0 5px var(--jarvis-neon));
+        }
+
+        .header-title {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--jarvis-neon);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .back-btn {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.05);
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* ---------------- MAIN WORKSPACE ---------------- */
+        .workspace {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ----- LEFT: CHART AREA ----- */
+        .chart-container {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            background: var(--bg-dark);
+            position: relative;
+        }
+
+        .chart-header {
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(17, 24, 39, 0.8);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 10;
+        }
+
+        .asset-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .asset-name {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--gold);
+        }
+
+        .asset-price {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            color: var(--profit-green);
+        }
+
+        .timeframe-selector {
+            display: flex;
+            gap: 4px;
+        }
+
+        .tf-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .tf-btn.active, .tf-btn:hover {
+            color: var(--jarvis-neon);
+            border-color: rgba(56, 189, 248, 0.3);
+            background: rgba(56, 189, 248, 0.05);
+        }
+
+        #tv-chart {
+            flex: 1;
+            width: 100%;
+        }
+
+        /* ----- RIGHT: AI CHAT AREA ----- */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-panel);
+            min-width: 320px;
+            max-width: 500px;
+        }
+
+        .chat-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .jarvis-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--jarvis-blue), #0284c7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px var(--jarvis-glow);
+        }
+
+        .jarvis-status {
+            font-size: 0.8rem;
+            color: var(--profit-green);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--profit-green);
+            border-radius: 50%;
+            box-shadow: 0 0 5px var(--profit-green);
+            animation: pulse 2s infinite;
+        }
+
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .msg-user {
+            align-self: flex-end;
+            background: rgba(255, 255, 255, 0.08);
+            border-bottom-right-radius: 2px;
+        }
+
+        .msg-ai {
+            align-self: flex-start;
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid rgba(14, 165, 233, 0.2);
+            border-bottom-left-radius: 2px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .msg-ai .strategy-tag {
+            display: inline-block;
+            background: rgba(251, 191, 36, 0.15);
+            color: var(--gold);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        /* Interactive Action Box */
+        .action-box {
+            margin-top: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .action-specs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+        }
+
+        .spec { display: flex; justify-content: space-between; }
+        .spec-label { color: var(--text-muted); }
+        .spec-val.buy { color: var(--jarvis-neon); font-weight: 600; }
+        .spec-val.sl { color: var(--loss-red); font-family: monospace;}
+        .spec-val.tp { color: var(--profit-green); font-family: monospace;}
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-yes {
+            background: var(--jarvis-blue);
+            color: white;
+            box-shadow: 0 0 10px var(--jarvis-glow);
+        }
+        .btn-yes:hover { background: #0284c7; box-shadow: 0 0 15px var(--jarvis-glow); transform: translateY(-1px); }
+
+        .btn-no {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+        }
+        .btn-no:hover { background: rgba(255,255,255,0.05); color: #fff; }
+
+        .chat-input-area {
+            padding: 16px;
+            border-top: 1px solid var(--border-color);
+            background: rgba(17, 24, 39, 0.9);
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .chat-input {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-main);
+            padding: 14px 45px 14px 16px;
+            border-radius: 24px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .chat-input:focus {
+            border-color: var(--jarvis-neon);
+            background: rgba(0,0,0,0.2);
+        }
+
+        .send-btn {
+            position: absolute;
+            right: 8px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--jarvis-blue);
+            border: none;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .send-btn:hover { background: #0284c7; transform: scale(1.05); }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* ---------------- RESPONSIVE (MOBILE) ---------------- */
+        @media (max-width: 768px) {
+            .workspace {
+                flex-direction: column;
+            }
+            .chart-container {
+                flex: 1;
+                border-right: none;
+                border-bottom: 1px solid var(--jarvis-glow);
+                min-height: 45vh;
+            }
+            .chat-container {
+                flex: 1;
+                max-width: 100%;
+                min-height: 40vh;
+            }
+            .header-title {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <a href="index.html" class="header-logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <div class="header-title">Jarvis Terminal</div>
+        </a>
+        <a href="index.html" class="back-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            Exit Terminal
+        </a>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+        
+        <!-- Left: Chart Area -->
+        <section class="chart-container">
+            <div class="chart-header">
+                <div class="asset-info">
+                    <span class="asset-name">XAUUSD</span>
+                    <span class="asset-price" id="live-price">2345.67</span>
+                </div>
+                <div class="timeframe-selector">
+                    <button class="tf-btn">M15</button>
+                    <button class="tf-btn active">H1</button>
+                    <button class="tf-btn">H4</button>
+                </div>
+            </div>
+            <div id="tv-chart"></div>
+        </section>
+
+        <!-- Right: Chat Area -->
+        <section class="chat-container">
+            <div class="chat-header">
+                <div class="jarvis-avatar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                </div>
+                <div>
+                    <div style="font-weight: 600; font-size: 0.95rem;">JARVIS AI</div>
+                    <div class="jarvis-status"><div class="status-dot"></div> Connected to MT5</div>
+                </div>
+            </div>
+
+            <div class="chat-history" id="chat-history">
+                <!-- Welcome Msg -->
+                <div class="message msg-ai">
+                    Hello Sir. I am online and synced with MT5 Account <b>71078136</b>. Which asset would you like me to analyze today?
+                </div>
+                
+                <!-- User Msg -->
+                <div class="message msg-user">
+                    วิเคราะห์กราฟทอง (XAUUSD) ตอนนี้ให้หน่อยครับ
+                </div>
+
+                <!-- AI Analysis Msg (Mock) -->
+                <div class="message msg-ai">
+                    <div class="strategy-tag">Smart Money Concept (SMC)</div>
+                    <div>ผมได้ดึงข้อมูล XAUUSD (H1) 1000 แท่งล่าสุดมาวิเคราะห์ให้เรียบร้อยครับ.<br><br>
+                    พบร่องรอยของ Institution: กราฟเกิด <b>ChoCH</b> (Change of Character) กลับหัว และราคาเพิ่งลงมาแตะ <b>Order Block (Demand Zone)</b> ที่ 2335.00 ซึ่งเป็นเขตที่มี Liquidity หนาแน่น <br><br>
+                    <i>*ผมได้วาดเส้นและกล่องโซนไข่ปลาส้มลงบนกราฟซ้ายมือให้แล้วครับ ลองเช็คดูได้เลย*</i></div>
+                    
+                    <div class="action-box">
+                        <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px;">Recommended Setup</div>
+                        <div class="action-specs">
+                            <div class="spec"><span class="spec-label">Action</span> <span class="spec-val buy">BUY LIMIT</span></div>
+                            <div class="spec"><span class="spec-label">Risk</span> <span class="spec-val" style="color:var(--text-main);">1.0% ($227)</span></div>
+                            <div class="spec"><span class="spec-label">Entry</span> <span class="spec-val">2336.50</span></div>
+                            <div class="spec"><span class="spec-label">Volume</span> <span class="spec-val">0.50 Lots</span></div>
+                            <div class="spec"><span class="spec-label">Stop Loss</span> <span class="spec-val sl">2330.00</span></div>
+                            <div class="spec"><span class="spec-label">Take Profit</span> <span class="spec-val tp">2355.00</span></div>
+                        </div>
+                        <div style="margin-bottom: 12px; font-size: 0.9rem;">ต้องการให้ผมวางออเดอร์ (Pending Order) เข้า MT5 เลยไหมครับ?</div>
+                        
+                        <div class="action-buttons">
+                            <button class="btn btn-yes" onclick="alert('Executing Trade via MetaApi...')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                YES, EXECUTE
+                            </button>
+                            <button class="btn btn-no">NO, CANCEL</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <input type="text" class="chat-input" placeholder="Ask Jarvis to analyze or execute...">
+                    <button class="send-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // Init TradingView Lightweight Charts (Mock Data)
+        document.addEventListener("DOMContentLoaded", () => {
+            const chartProperties = {
+                width: document.getElementById('tv-chart').clientWidth,
+                height: document.getElementById('tv-chart').clientHeight,
+                layout: {
+                    background: { type: 'solid', color: '#0a0e17' },
+                    textColor: '#9ca3af',
+                    fontFamily: 'Inter',
+                },
+                grid: {
+                    vertLines: { color: '#1f2937' },
+                    horzLines: { color: '#1f2937' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                rightPriceScale: {
+                    borderColor: '#1f2937',
+                },
+                timeScale: {
+                    borderColor: '#1f2937',
+                    timeVisible: true,
+                },
+            };
+
+            const domElement = document.getElementById('tv-chart');
+            const chart = LightweightCharts.createChart(domElement, chartProperties);
+            const candleSeries = chart.addCandlestickSeries({
+                upColor: '#10b981',
+                downColor: '#ef4444', 
+                borderDownColor: '#ef4444',
+                borderUpColor: '#10b981',
+                wickDownColor: '#7f1d1d',
+                wickUpColor: '#064e3b',
+            });
+
+            // Generate some dummy candlestick data
+            const data = [];
+            let time = Math.floor(Date.now() / 1000) - 100000;
+            let currentPrice = 2330.00;
+            
+            for (let i = 0; i < 100; i++) {
+                const open = currentPrice;
+                const high = open + (Math.random() * 5);
+                const low = open - (Math.random() * 5);
+                const close = (open + high + low) / 3 + (Math.random() * 2 - 1);
+                
+                data.push({
+                    time: time + (i * 3600),
+                    open: open,
+                    high: Math.max(open, close, high),
+                    low: Math.min(open, close, low),
+                    close: close
+                });
+                currentPrice = close;
+            }
+            
+            // Add latest drop to simulate SMC
+            data.push({ time: time + (100 * 3600), open: currentPrice, high: currentPrice + 2, low: 2335.50, close: 2336.50 });
+            candleSeries.setData(data);
+
+            // SIMULATE AI DRAWING (Order Block Box & Entry line)
+            // Note: Native Lightweight charts needs plugins for boxes, so we use PriceLines to show levels
+            
+            // Entry Level
+            candleSeries.createPriceLine({
+                price: 2336.50,
+                color: '#38bdf8',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: 'BUY LIMIT',
+            });
+
+            // Stop Loss
+            candleSeries.createPriceLine({
+                price: 2330.00,
+                color: '#ef4444',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                axisLabelVisible: true,
+                title: 'SL',
+            });
+
+            // Take Profit
+            candleSeries.createPriceLine({
+                price: 2355.00,
+                color: '#10b981',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                axisLabelVisible: true,
+                title: 'TP',
+            });
+
+            // Resize observer
+            window.addEventListener('resize', () => {
+                chart.applyOptions({ 
+                    width: domElement.clientWidth,
+                    height: domElement.clientHeight 
+                });
+            });
+
+            // Set live price
+            document.getElementById('live-price').innerText = "2336.50";
+        });
+    </script>
+</body>
+</html>
