@@ -429,7 +429,10 @@
                     <button class="tf-btn" onclick="switchTimeframe('D1', this)">D1</button>
                 </div>
             </div>
-            <div id="tv-chart" style="width:100%; height:100%;"></div>
+            <div id="chart-wrapper" style="position:relative; width:100%; flex:1; overflow:hidden;">
+                <div id="tv-chart" style="width:100%; height:100%;"></div>
+                <canvas id="overlay-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10;"></canvas>
+            </div>
         </section>
 
         <!-- Right: Chat Area -->
@@ -467,9 +470,9 @@
     <script>
         const API_URL = "https://web-production-dae6e.up.railway.app";
         let chart = null;
+        var smcDrawings = null; // Store drawings data for redraw on scroll/zoom
 
         function initChart() {
-            const domElement = document.getElementById('tv-chart');
             // Init KLineChart
             chart = klinecharts.init('tv-chart', {
                 styles: {
@@ -485,41 +488,138 @@
                 }
             });
 
-            // Register Custom Rectangle Overlay for SMC Zone
-            klinecharts.registerOverlay({
-                name: 'smcZone',
-                needDefaultPointFigure: false,
-                needDefaultXAxisFigure: false,
-                needDefaultYAxisFigure: false,
-                totalStep: 3,
-                createPointFigures: function({ coordinates, overlay }) {
-                    if (coordinates.length < 2) return [];
-                    var bgColor = (overlay.styles && overlay.styles.polygon && overlay.styles.polygon.color) ? overlay.styles.polygon.color : 'rgba(56, 189, 248, 0.2)';
-                    
-                    return [
-                        {
-                            type: 'polygon',
-                            attrs: {
-                                coordinates: [
-                                    coordinates[0],
-                                    { x: coordinates[1].x, y: coordinates[0].y },
-                                    coordinates[1],
-                                    { x: coordinates[0].x, y: coordinates[1].y }
-                                ]
-                            },
-                            styles: { style: 'fill', color: bgColor }
-                        }
-                    ];
-                }
-            });
-
             // Load real data from Railway backend
             loadChartData('XAUUSD', 'H1');
 
             // Responsive resize
             window.addEventListener('resize', function() {
                 chart.resize();
+                resizeOverlayCanvas();
+                if (smcDrawings) drawSMCOverlay(smcDrawings);
             });
+
+            // Redraw SMC zones when user scrolls/zooms the chart
+            chart.subscribeAction('onScroll', function() {
+                if (smcDrawings) drawSMCOverlay(smcDrawings);
+            });
+            chart.subscribeAction('onZoom', function() {
+                if (smcDrawings) drawSMCOverlay(smcDrawings);
+            });
+        }
+
+        function resizeOverlayCanvas() {
+            var canvas = document.getElementById('overlay-canvas');
+            var wrapper = document.getElementById('chart-wrapper');
+            canvas.width = wrapper.offsetWidth;
+            canvas.height = wrapper.offsetHeight;
+        }
+
+        function drawSMCOverlay(d) {
+            var canvas = document.getElementById('overlay-canvas');
+            resizeOverlayCanvas();
+            var ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Get chart's visible price range from the Y axis
+            var dataList = chart.getDataList();
+            if (!dataList || dataList.length < 2) return;
+
+            // Find visible price range by checking all visible candles
+            var visibleRange = chart.getVisibleRange(); // { from, to, realFrom, realTo }
+            if (!visibleRange) return;
+
+            var minPrice = Infinity, maxPrice = -Infinity;
+            for (var i = visibleRange.from; i <= Math.min(visibleRange.to, dataList.length - 1); i++) {
+                if (dataList[i]) {
+                    if (dataList[i].low < minPrice) minPrice = dataList[i].low;
+                    if (dataList[i].high > maxPrice) maxPrice = dataList[i].high;
+                }
+            }
+            if (minPrice === Infinity) return;
+
+            // Add 5% padding like the chart does
+            var range = maxPrice - minPrice;
+            maxPrice += range * 0.05;
+            minPrice -= range * 0.05;
+            range = maxPrice - minPrice;
+
+            // Chart area dimensions (exclude Y-axis area ~60px on right, X-axis ~30px at bottom)
+            var yAxisWidth = 60;
+            var xAxisHeight = 30;
+            var chartW = canvas.width - yAxisWidth;
+            var chartH = canvas.height - xAxisHeight;
+
+            // Price to Y pixel
+            function priceToY(price) {
+                return chartH - ((price - minPrice) / range) * chartH;
+            }
+
+            // Timestamp to X pixel
+            var visibleCount = visibleRange.to - visibleRange.from + 1;
+            var barWidth = chartW / visibleCount;
+
+            function timestampToX(ts) {
+                // Find the index of closest data point
+                for (var i = visibleRange.from; i <= Math.min(visibleRange.to, dataList.length - 1); i++) {
+                    if (dataList[i] && dataList[i].timestamp >= ts) {
+                        return (i - visibleRange.from) * barWidth;
+                    }
+                }
+                return chartW; // If beyond visible, draw to the edge
+            }
+
+            // ---- Draw Order Block Box ----
+            var y1 = priceToY(d.entry);
+            var y2 = priceToY(d.sl);
+            var x1 = d.ob_time ? timestampToX(d.ob_time) : 0;
+            var x2 = chartW; // extend to right edge
+
+            var boxY = Math.min(y1, y2);
+            var boxH = Math.abs(y2 - y1);
+
+            // Filled rectangle
+            ctx.fillStyle = d.isBuy ? 'rgba(56, 189, 248, 0.18)' : 'rgba(239, 68, 68, 0.18)';
+            ctx.fillRect(x1, boxY, x2 - x1, boxH);
+
+            // Border of rectangle
+            ctx.strokeStyle = d.isBuy ? '#38bdf8' : '#ef4444';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(x1, boxY, x2 - x1, boxH);
+
+            // Label
+            ctx.font = 'bold 11px Inter, sans-serif';
+            ctx.fillStyle = d.isBuy ? '#38bdf8' : '#ef4444';
+            ctx.fillText(d.isBuy ? '🟦 Demand Zone (OB)' : '🟥 Supply Zone (OB)', x1 + 6, boxY + 14);
+
+            // ---- Draw TP Line ----
+            var yTP = priceToY(d.tp);
+            ctx.setLineDash([8, 4]);
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, yTP); ctx.lineTo(chartW, yTP); ctx.stroke();
+            ctx.fillStyle = '#10b981';
+            ctx.font = 'bold 11px Inter, sans-serif';
+            ctx.fillText('TP ' + d.tp.toFixed(2), chartW - 100, yTP - 5);
+
+            // ---- Draw ENTRY Line ----
+            var yEntry = priceToY(d.entry);
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = d.isBuy ? '#38bdf8' : '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, yEntry); ctx.lineTo(chartW, yEntry); ctx.stroke();
+            ctx.fillStyle = d.isBuy ? '#38bdf8' : '#ef4444';
+            ctx.fillText('ENTRY ' + d.entry.toFixed(2), chartW - 120, yEntry - 5);
+
+            // ---- Draw SL Line ----
+            var ySL = priceToY(d.sl);
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, ySL); ctx.lineTo(chartW, ySL); ctx.stroke();
+            ctx.fillStyle = '#ef4444';
+            ctx.fillText('SL ' + d.sl.toFixed(2), chartW - 100, ySL + 14);
+
+            ctx.setLineDash([]);
         }
 
         var currentSymbol = 'XAUUSD';
@@ -616,63 +716,18 @@
                     addMessage('', false, html);
 
                     if (r.drawings && r.drawings.entry) {
-                        chart.removeOverlay(); // Clear previous drawings
-                        
-                        // Get current chart data
-                        var dataList = chart.getDataList();
-                        if(dataList && dataList.length > 5) {
-                            var currentPoint = dataList[dataList.length - 1];
-                            
-                            // Determine Start Timestamp
-                            var tStart = r.drawings.ob_time || dataList[Math.max(0, dataList.length - 24)].timestamp;
-                            
-                            // Project the end timestamp into the future (e.g. + 20 candles worth of time based on timeframe)
-                            var currentTfMap = { 'M1': 60, 'M5': 300, 'M15': 900, 'M30': 1800, 'H1': 3600, 'H4': 14400, 'D1': 86400 };
-                            var tfSec = currentTfMap[currentTimeframe] || 3600;
-                            var tEnd = currentPoint.timestamp + (tfSec * 24 * 1000); // Exent 24 candles into future
+                        // Clear previous overlays
+                        chart.removeOverlay();
 
-                            // Draw Area/Rectangle for Order Block
-                            var boxColor = r.action.type.includes('BUY') ? 'rgba(56, 189, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-                            var borderColor = r.action.type.includes('BUY') ? '#38bdf8' : '#ef4444';
-                            var zoneLabel = r.action.type.includes('BUY') ? 'Demand Zone' : 'Supply Zone';
-
-                            // Draw Order Block Rectangle covering SL to ENTRY
-                            chart.createOverlay({
-                                name: 'smcZone', // Use custom overlay
-                                extendData: zoneLabel,
-                                points: [
-                                    { timestamp: tStart, value: r.drawings.entry },
-                                    { timestamp: tEnd, value: r.drawings.sl }
-                                ],
-                                styles: {
-                                    polygon: { color: boxColor }
-                                }
-                            });
-
-                            // Target line (TP)
-                            chart.createOverlay({
-                                name: 'rayLine',
-                                extendData: 'TP',
-                                points: [ { timestamp: tStart, value: r.drawings.tp }, { timestamp: tEnd, value: r.drawings.tp } ],
-                                styles: { line: { color: '#10b981', style: 'solid', size: 2 } }
-                            });
-                            
-                            // Entry line
-                            chart.createOverlay({
-                                name: 'rayLine',
-                                extendData: 'ENTRY',
-                                points: [ { timestamp: tStart, value: r.drawings.entry }, { timestamp: tEnd, value: r.drawings.entry } ],
-                                styles: { line: { color: borderColor, style: 'dashed', size: 2 } }
-                            });
-                            
-                            // SL line
-                            chart.createOverlay({
-                                name: 'rayLine',
-                                extendData: 'SL',
-                                points: [ { timestamp: tStart, value: r.drawings.sl }, { timestamp: tEnd, value: r.drawings.sl } ],
-                                styles: { line: { color: '#ef4444', style: 'solid', size: 2 } }
-                            });
-                        }
+                        // Store drawing data and render canvas overlay
+                        smcDrawings = {
+                            entry: r.drawings.entry,
+                            sl: r.drawings.sl,
+                            tp: r.drawings.tp,
+                            ob_time: r.drawings.ob_time,
+                            isBuy: r.action.type.includes('BUY')
+                        };
+                        drawSMCOverlay(smcDrawings);
                     }
                 }
             } catch (e) {
