@@ -420,9 +420,9 @@
                     <span class="asset-price" id="live-price">2345.67</span>
                 </div>
                 <div class="timeframe-selector">
-                    <button class="tf-btn">M15</button>
-                    <button class="tf-btn active">H1</button>
-                    <button class="tf-btn">H4</button>
+                    <button class="tf-btn" onclick="switchTimeframe('M15', this)">M15</button>
+                    <button class="tf-btn active" onclick="switchTimeframe('H1', this)">H1</button>
+                    <button class="tf-btn" onclick="switchTimeframe('H4', this)">H4</button>
                 </div>
             </div>
             <div id="tv-chart"></div>
@@ -488,27 +488,57 @@
                 borderUpColor: '#10b981', wickDownColor: '#7f1d1d', wickUpColor: '#064e3b'
             });
 
-            // Generate demo XAUUSD candlestick data
-            const data = [];
-            let time = Math.floor(Date.now() / 1000) - 360000;
-            let price = 2330.00;
-            for (let i = 0; i < 100; i++) {
-                const o = price;
-                const h2 = o + Math.random() * 6;
-                const l2 = o - Math.random() * 6;
-                const c = (o + h2 + l2) / 3 + (Math.random() * 3 - 1.5);
-                data.push({ time: time + i * 3600, open: o, high: Math.max(o, c, h2), low: Math.min(o, c, l2), close: c });
-                price = c;
-            }
-            candleSeries.setData(data);
-            chart.timeScale().fitContent();
-            document.getElementById('live-price').innerText = price.toFixed(2);
+            // Load real data from Railway backend
+            loadChartData('XAUUSD', 'H1');
 
             // Responsive resize
-            window.addEventListener('resize', () => {
-                const r2 = domElement.getBoundingClientRect();
+            window.addEventListener('resize', function() {
+                var r2 = domElement.getBoundingClientRect();
                 chart.applyOptions({ width: r2.width, height: r2.height });
             });
+        }
+
+        var currentSymbol = 'XAUUSD';
+        var currentTimeframe = 'H1';
+
+        function switchTimeframe(tf, btn) {
+            currentTimeframe = tf;
+            // Update active button
+            document.querySelectorAll('.tf-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            loadChartData(currentSymbol, tf);
+        }
+
+        async function loadChartData(symbol, timeframe) {
+            document.getElementById('live-price').innerText = 'Loading...';
+            try {
+                var res = await fetch(API_URL + '/chart-data?symbol=' + symbol + '&timeframe=' + timeframe);
+                var result = await res.json();
+                if (result.status === 'ok' && result.candles && result.candles.length > 0) {
+                    candleSeries.setData(result.candles);
+                    chart.timeScale().fitContent();
+                    document.getElementById('live-price').innerText = result.current_price.toFixed(2);
+                } else {
+                    document.getElementById('live-price').innerText = 'No data';
+                }
+            } catch(e) {
+                // Fallback: generate demo data if server is down
+                console.warn('API unreachable, using demo data:', e);
+                var data = [];
+                var time = Math.floor(Date.now() / 1000) - 360000;
+                var price = 3080.00;
+                for (var i = 0; i < 100; i++) {
+                    var o = price;
+                    var h2 = o + Math.random() * 8;
+                    var l2 = o - Math.random() * 8;
+                    var c = (o + h2 + l2) / 3 + (Math.random() * 4 - 2);
+                    data.push({ time: time + i * 3600, open: o, high: Math.max(o, c, h2), low: Math.min(o, c, l2), close: c });
+                    price = c;
+                }
+                candleSeries.setData(data);
+                chart.timeScale().fitContent();
+                document.getElementById('live-price').innerText = price.toFixed(2) + ' (demo)';
+            }
         }
 
         // ---- Chat Logic ----
