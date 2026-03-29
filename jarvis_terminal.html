@@ -420,9 +420,13 @@
                     <span class="asset-price" id="live-price">2345.67</span>
                 </div>
                 <div class="timeframe-selector">
+                    <button class="tf-btn" onclick="switchTimeframe('M1', this)">M1</button>
+                    <button class="tf-btn" onclick="switchTimeframe('M5', this)">M5</button>
                     <button class="tf-btn" onclick="switchTimeframe('M15', this)">M15</button>
+                    <button class="tf-btn" onclick="switchTimeframe('M30', this)">M30</button>
                     <button class="tf-btn active" onclick="switchTimeframe('H1', this)">H1</button>
                     <button class="tf-btn" onclick="switchTimeframe('H4', this)">H4</button>
+                    <button class="tf-btn" onclick="switchTimeframe('D1', this)">D1</button>
                 </div>
             </div>
             <div id="tv-chart"></div>
