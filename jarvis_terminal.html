@@ -531,9 +531,18 @@
             // Chart drawing area width (Y-axis is on the right side)
             var chartW = canvas.width - 60;
 
-            // ===== 1. ORDER BLOCK BOX (Entry ↔ SL) =====
-            var obBoxTop = Math.min(yEntry, ySL);
-            var obBoxH = Math.abs(ySL - yEntry);
+            // ===== 1. ORDER BLOCK BOX (zone_top ↔ zone_bottom from backend) =====
+            // Use precise zone boundaries from the analyzer if available
+            var pxZoneTop, pxZoneBottom;
+            if (d.zone_top && d.zone_bottom) {
+                pxZoneTop = chart.convertToPixel({ value: d.zone_top }, { paneId: 'candle_pane' });
+                pxZoneBottom = chart.convertToPixel({ value: d.zone_bottom }, { paneId: 'candle_pane' });
+            }
+            var yZT = (pxZoneTop && pxZoneTop.y !== undefined) ? pxZoneTop.y : Math.min(yEntry, ySL);
+            var yZB = (pxZoneBottom && pxZoneBottom.y !== undefined) ? pxZoneBottom.y : Math.max(yEntry, ySL);
+
+            var obBoxTop = Math.min(yZT, yZB);
+            var obBoxH = Math.abs(yZB - yZT);
             var obColor = d.isBuy ? 'rgba(56, 189, 248, 0.18)' : 'rgba(239, 68, 68, 0.18)';
             var obBorderColor = d.isBuy ? '#38bdf8' : '#ef4444';
 
@@ -667,7 +676,7 @@
                 const res = await fetch(API_URL + '/terminal-chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, symbol: 'XAUUSD', timeframe: 'H1' })
+                    body: JSON.stringify({ message: text, symbol: currentSymbol, timeframe: currentTimeframe })
                 });
                 const result = await res.json();
                 var el = document.getElementById(loadingId);
@@ -708,7 +717,9 @@
                             sl: r.drawings.sl,
                             tp: r.drawings.tp,
                             ob_time: r.drawings.ob_time,
-                            isBuy: r.action.type.includes('BUY')
+                            zone_top: r.drawings.zone_top || null,
+                            zone_bottom: r.drawings.zone_bottom || null,
+                            isBuy: r.drawings.isBuy !== undefined ? r.drawings.isBuy : r.action.type.includes('BUY')
                         };
                         drawSMCOverlay(smcDrawings);
                     }
