@@ -485,6 +485,34 @@
                 }
             });
 
+            // Register Custom Rectangle Overlay for SMC Zone
+            klinecharts.extension.addOverlay({
+                name: 'smcZone',
+                needDefaultPointFigure: false,
+                needDefaultXAxisFigure: false,
+                needDefaultYAxisFigure: false,
+                totalStep: 3,
+                createPointFigures: function({ coordinates, overlay }) {
+                    if (coordinates.length < 2) return [];
+                    var bgColor = (overlay.styles && overlay.styles.polygon && overlay.styles.polygon.color) ? overlay.styles.polygon.color : 'rgba(56, 189, 248, 0.2)';
+                    
+                    return [
+                        {
+                            type: 'polygon',
+                            attrs: {
+                                coordinates: [
+                                    coordinates[0],
+                                    { x: coordinates[1].x, y: coordinates[0].y },
+                                    coordinates[1],
+                                    { x: coordinates[0].x, y: coordinates[1].y }
+                                ]
+                            },
+                            styles: { style: 'fill', color: bgColor }
+                        }
+                    ];
+                }
+            });
+
             // Load real data from Railway backend
             loadChartData('XAUUSD', 'H1');
 
@@ -610,14 +638,14 @@
 
                             // Draw Order Block Rectangle covering SL to ENTRY
                             chart.createOverlay({
-                                name: 'rect',
+                                name: 'smcZone', // Use custom overlay
                                 extendData: zoneLabel,
                                 points: [
-                                    { timestamp: tStart, value: r.drawings.sl },
-                                    { timestamp: tEnd, value: r.drawings.entry }
+                                    { timestamp: tStart, value: r.drawings.entry },
+                                    { timestamp: tEnd, value: r.drawings.sl }
                                 ],
                                 styles: {
-                                    polygon: { color: boxColor, style: 'fill' }
+                                    polygon: { color: boxColor }
                                 }
                             });
 
