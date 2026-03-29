@@ -486,111 +486,142 @@
     </main>
 
     <script>
-        // Init TradingView Lightweight Charts (Mock Data)
+        // Init TradingView Lightweight Charts
+        const API_URL = "https://web-production-dae6e.up.railway.app";
+        let candleSeries = null;
+        let drawnLines = [];
+
         document.addEventListener("DOMContentLoaded", () => {
+            const domElement = document.getElementById('tv-chart');
             const chartProperties = {
-                width: document.getElementById('tv-chart').clientWidth,
-                height: document.getElementById('tv-chart').clientHeight,
-                layout: {
-                    background: { type: 'solid', color: '#0a0e17' },
-                    textColor: '#9ca3af',
-                    fontFamily: 'Inter',
-                },
-                grid: {
-                    vertLines: { color: '#1f2937' },
-                    horzLines: { color: '#1f2937' },
-                },
-                crosshair: {
-                    mode: LightweightCharts.CrosshairMode.Normal,
-                },
-                rightPriceScale: {
-                    borderColor: '#1f2937',
-                },
-                timeScale: {
-                    borderColor: '#1f2937',
-                    timeVisible: true,
-                },
+                width: domElement.clientWidth,
+                height: domElement.clientHeight,
+                layout: { background: { type: 'solid', color: '#0a0e17' }, textColor: '#9ca3af', fontFamily: 'Inter' },
+                grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: '#1f2937' },
+                timeScale: { borderColor: '#1f2937', timeVisible: true }
             };
 
-            const domElement = document.getElementById('tv-chart');
             const chart = LightweightCharts.createChart(domElement, chartProperties);
-            const candleSeries = chart.addCandlestickSeries({
-                upColor: '#10b981',
-                downColor: '#ef4444', 
-                borderDownColor: '#ef4444',
-                borderUpColor: '#10b981',
-                wickDownColor: '#7f1d1d',
-                wickUpColor: '#064e3b',
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#10b981', downColor: '#ef4444', borderDownColor: '#ef4444',
+                borderUpColor: '#10b981', wickDownColor: '#7f1d1d', wickUpColor: '#064e3b'
             });
 
-            // Generate some dummy candlestick data
+            // Demo Data
             const data = [];
             let time = Math.floor(Date.now() / 1000) - 100000;
             let currentPrice = 2330.00;
-            
             for (let i = 0; i < 100; i++) {
                 const open = currentPrice;
                 const high = open + (Math.random() * 5);
                 const low = open - (Math.random() * 5);
                 const close = (open + high + low) / 3 + (Math.random() * 2 - 1);
-                
-                data.push({
-                    time: time + (i * 3600),
-                    open: open,
-                    high: Math.max(open, close, high),
-                    low: Math.min(open, close, low),
-                    close: close
-                });
+                data.push({ time: time + (i * 3600), open, high: Math.max(open, close, high), low: Math.min(open, close, low), close });
                 currentPrice = close;
             }
-            
-            // Add latest drop to simulate SMC
-            data.push({ time: time + (100 * 3600), open: currentPrice, high: currentPrice + 2, low: 2335.50, close: 2336.50 });
             candleSeries.setData(data);
+            document.getElementById('live-price').innerText = currentPrice.toFixed(2);
 
-            // SIMULATE AI DRAWING (Order Block Box & Entry line)
-            // Note: Native Lightweight charts needs plugins for boxes, so we use PriceLines to show levels
+            window.addEventListener('resize', () => { chart.applyOptions({ width: domElement.clientWidth, height: domElement.clientHeight }); });
             
-            // Entry Level
-            candleSeries.createPriceLine({
-                price: 2336.50,
-                color: '#38bdf8',
-                lineWidth: 2,
-                lineStyle: LightweightCharts.LineStyle.Dashed,
-                axisLabelVisible: true,
-                title: 'BUY LIMIT',
-            });
+            // Chat Logic
+            const chatInput = document.querySelector('.chat-input');
+            const sendBtn = document.querySelector('.send-btn');
+            const chatHistory = document.getElementById('chat-history');
 
-            // Stop Loss
-            candleSeries.createPriceLine({
-                price: 2330.00,
-                color: '#ef4444',
-                lineWidth: 2,
-                lineStyle: LightweightCharts.LineStyle.Solid,
-                axisLabelVisible: true,
-                title: 'SL',
-            });
+            function addMessage(text, isUser=false, htmlContent=null) {
+                const div = document.createElement('div');
+                div.className = `message ${isUser ? 'msg-user' : 'msg-ai'}`;
+                if (htmlContent) {
+                    div.innerHTML = htmlContent;
+                } else {
+                    div.innerText = text;
+                }
+                chatHistory.appendChild(div);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
 
-            // Take Profit
-            candleSeries.createPriceLine({
-                price: 2355.00,
-                color: '#10b981',
-                lineWidth: 2,
-                lineStyle: LightweightCharts.LineStyle.Solid,
-                axisLabelVisible: true,
-                title: 'TP',
-            });
+            async function submitMessage() {
+                const text = chatInput.value.trim();
+                if(!text) return;
+                
+                addMessage(text, true);
+                chatInput.value = '';
+                
+                // Add loading indicator
+                const loadingId = "load_" + Date.now();
+                addMessage("กำลังคิด...", false, `<div id="${loadingId}" class="jarvis-status"><div class="status-dot"></div> Analyzing Market Data...</div>`);
+                
+                try {
+                    const res = await fetch(`${API_URL}/terminal-chat`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ message: text, symbol: 'XAUUSD', timeframe: 'H1' })
+                    });
+                    const result = await res.json();
+                    
+                    // Remove loading
+                    document.getElementById(loadingId).parentElement.remove();
+                    
+                    if (result && result.reply) {
+                        const r = result.reply;
+                        let html = '';
+                        if (r.strategy) html += `<div class="strategy-tag">${r.strategy}</div>`;
+                        html += `<div>${r.text}</div>`;
+                        
+                        if (r.action) {
+                            html += `
+                            <div class="action-box">
+                                <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px;">Recommended Setup</div>
+                                <div class="action-specs">
+                                    <div class="spec"><span class="spec-label">Action</span> <span class="spec-val buy">${r.action.type}</span></div>
+                                    <div class="spec"><span class="spec-label">Risk</span> <span class="spec-val" style="color:var(--text-main);">${r.action.risk}</span></div>
+                                    <div class="spec"><span class="spec-label">Entry</span> <span class="spec-val">${r.action.entry}</span></div>
+                                    <div class="spec"><span class="spec-label">Volume</span> <span class="spec-val">${r.action.volume}</span></div>
+                                    <div class="spec"><span class="spec-label">Stop Loss</span> <span class="spec-val sl">${r.action.sl}</span></div>
+                                    <div class="spec"><span class="spec-label">Take Profit</span> <span class="spec-val tp">${r.action.tp}</span></div>
+                                </div>
+                                <div style="margin-bottom: 12px; font-size: 0.9rem;">ต้องการให้ผมวางออเดอร์เข้า MT5 เลยไหมครับ?</div>
+                                <div class="action-buttons">
+                                    <button class="btn btn-yes" onclick="executeOrder(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>YES, EXECUTE</button>
+                                    <button class="btn btn-no" onclick="this.parentElement.parentElement.innerHTML='<i>❌ Cancelled by User</i>'">NO, CANCEL</button>
+                                </div>
+                            </div>`;
+                        }
+                        addMessage("", false, html);
+                        
+                        // DRAW LINES ON CHART
+                        if (r.drawings && r.drawings.entry) {
+                            // clear old lines
+                            drawnLines.forEach(l => candleSeries.removePriceLine(l));
+                            drawnLines = [];
+                            
+                            drawnLines.push(candleSeries.createPriceLine({price: r.drawings.entry, color: '#38bdf8', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'ENTRY'}));
+                            drawnLines.push(candleSeries.createPriceLine({price: r.drawings.sl, color: '#ef4444', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: true, title: 'SL'}));
+                            drawnLines.push(candleSeries.createPriceLine({price: r.drawings.tp, color: '#10b981', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: true, title: 'TP'}));
+                        }
+                    }
+                } catch(e) {
+                    document.getElementById(loadingId).parentElement.remove();
+                    addMessage("❌ ขออภัยครับ Server ไม่ตอบสนอง: " + e.message, false);
+                }
+            }
 
-            // Resize observer
-            window.addEventListener('resize', () => {
-                chart.applyOptions({ 
-                    width: domElement.clientWidth,
-                    height: domElement.clientHeight 
-                });
-            });
+            window.executeOrder = async function(btn) {
+                btn.innerHTML = "EXECUTING...";
+                try {
+                    const res = await fetch(`${API_URL}/terminal-execute`, { method: 'POST', body: JSON.stringify({}) });
+                    const result = await res.json();
+                    btn.parentElement.innerHTML = `<span style="color:var(--profit-green);"><b>${result.message}</b></span>`;
+                } catch(e) {
+                    btn.innerHTML = "FAILED!";
+                }
+            };
 
-            // Set live price
-            document.getElementById('live-price').innerText = "2336.50";
+            sendBtn.addEventListener('click', submitMessage);
+            chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitMessage(); });
         });
     </script>
 </body>
