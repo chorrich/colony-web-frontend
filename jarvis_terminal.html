@@ -441,48 +441,15 @@
             <div class="chat-history" id="chat-history">
                 <!-- Welcome Msg -->
                 <div class="message msg-ai">
-                    Hello Sir. I am online and synced with MT5 Account <b>71078136</b>. Which asset would you like me to analyze today?
-                </div>
-                
-                <!-- User Msg -->
-                <div class="message msg-user">
-                    วิเคราะห์กราฟทอง (XAUUSD) ตอนนี้ให้หน่อยครับ
-                </div>
-
-                <!-- AI Analysis Msg (Mock) -->
-                <div class="message msg-ai">
-                    <div class="strategy-tag">Smart Money Concept (SMC)</div>
-                    <div>ผมได้ดึงข้อมูล XAUUSD (H1) 1000 แท่งล่าสุดมาวิเคราะห์ให้เรียบร้อยครับ.<br><br>
-                    พบร่องรอยของ Institution: กราฟเกิด <b>ChoCH</b> (Change of Character) กลับหัว และราคาเพิ่งลงมาแตะ <b>Order Block (Demand Zone)</b> ที่ 2335.00 ซึ่งเป็นเขตที่มี Liquidity หนาแน่น <br><br>
-                    <i>*ผมได้วาดเส้นและกล่องโซนไข่ปลาส้มลงบนกราฟซ้ายมือให้แล้วครับ ลองเช็คดูได้เลย*</i></div>
-                    
-                    <div class="action-box">
-                        <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px;">Recommended Setup</div>
-                        <div class="action-specs">
-                            <div class="spec"><span class="spec-label">Action</span> <span class="spec-val buy">BUY LIMIT</span></div>
-                            <div class="spec"><span class="spec-label">Risk</span> <span class="spec-val" style="color:var(--text-main);">1.0% ($227)</span></div>
-                            <div class="spec"><span class="spec-label">Entry</span> <span class="spec-val">2336.50</span></div>
-                            <div class="spec"><span class="spec-label">Volume</span> <span class="spec-val">0.50 Lots</span></div>
-                            <div class="spec"><span class="spec-label">Stop Loss</span> <span class="spec-val sl">2330.00</span></div>
-                            <div class="spec"><span class="spec-label">Take Profit</span> <span class="spec-val tp">2355.00</span></div>
-                        </div>
-                        <div style="margin-bottom: 12px; font-size: 0.9rem;">ต้องการให้ผมวางออเดอร์ (Pending Order) เข้า MT5 เลยไหมครับ?</div>
-                        
-                        <div class="action-buttons">
-                            <button class="btn btn-yes" onclick="alert('Executing Trade via MetaApi...')">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                                YES, EXECUTE
-                            </button>
-                            <button class="btn btn-no">NO, CANCEL</button>
-                        </div>
-                    </div>
+                    สวัสดีครับ! ผม Jarvis AI พร้อมวิเคราะห์กราฟและส่งคำสั่งเทรดเข้า MT5 ให้ครับ<br><br>
+                    ลองพิมพ์ เช่น <b>"วิเคราะห์ทอง"</b> หรือ <b>"Analyze XAUUSD"</b> ได้เลยครับ 🚀
                 </div>
             </div>
 
             <div class="chat-input-area">
                 <div class="input-wrapper">
-                    <input type="text" class="chat-input" placeholder="Ask Jarvis to analyze or execute...">
-                    <button class="send-btn">
+                    <input type="text" id="chat-input" class="chat-input" placeholder="พิมพ์ข้อความถาม Jarvis...">
+                    <button id="send-btn" class="send-btn" type="button">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     </button>
                 </div>
@@ -492,150 +459,147 @@
     </main>
 
     <script>
-        // Init TradingView Lightweight Charts
         const API_URL = "https://web-production-dae6e.up.railway.app";
+        let chart = null;
         let candleSeries = null;
         let drawnLines = [];
 
-        document.addEventListener("DOMContentLoaded", () => {
+        function initChart() {
             const domElement = document.getElementById('tv-chart');
-            const chartProperties = {
-                autoSize: true, // Fix zero-height canvas bug on Safari
+            // Force explicit pixel dimensions (Safari flex workaround)
+            const rect = domElement.getBoundingClientRect();
+            const w = Math.max(rect.width, 300);
+            const h = Math.max(rect.height, 300);
+
+            chart = LightweightCharts.createChart(domElement, {
+                width: w,
+                height: h,
                 layout: { background: { type: 'solid', color: '#0a0e17' }, textColor: '#9ca3af', fontFamily: 'Inter' },
                 grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
                 crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
                 rightPriceScale: { borderColor: '#1f2937' },
                 timeScale: { borderColor: '#1f2937', timeVisible: true }
-            };
+            });
 
-            const chart = LightweightCharts.createChart(domElement, chartProperties);
             candleSeries = chart.addCandlestickSeries({
                 upColor: '#10b981', downColor: '#ef4444', borderDownColor: '#ef4444',
                 borderUpColor: '#10b981', wickDownColor: '#7f1d1d', wickUpColor: '#064e3b'
             });
 
-            // Demo Data
+            // Generate demo XAUUSD candlestick data
             const data = [];
-            let time = Math.floor(Date.now() / 1000) - 100000;
-            let currentPrice = 2330.00;
+            let time = Math.floor(Date.now() / 1000) - 360000;
+            let price = 2330.00;
             for (let i = 0; i < 100; i++) {
-                const open = currentPrice;
-                const high = open + (Math.random() * 5);
-                const low = open - (Math.random() * 5);
-                const close = (open + high + low) / 3 + (Math.random() * 2 - 1);
-                data.push({ time: time + (i * 3600), open, high: Math.max(open, close, high), low: Math.min(open, close, low), close });
-                currentPrice = close;
+                const o = price;
+                const h2 = o + Math.random() * 6;
+                const l2 = o - Math.random() * 6;
+                const c = (o + h2 + l2) / 3 + (Math.random() * 3 - 1.5);
+                data.push({ time: time + i * 3600, open: o, high: Math.max(o, c, h2), low: Math.min(o, c, l2), close: c });
+                price = c;
             }
             candleSeries.setData(data);
-            document.getElementById('live-price').innerText = currentPrice.toFixed(2);
+            chart.timeScale().fitContent();
+            document.getElementById('live-price').innerText = price.toFixed(2);
 
-            // Clean up old explicit JS resize (since autoSize: true handles window resize)
-            // Fix dynamically sized flex containers on mobile by using ResizeObserver
-            const ro = new ResizeObserver(entries => {
-                if (entries.length === 0 || entries[0].target !== domElement) return;
-                const newRect = entries[0].contentRect;
-                if (newRect.width > 0 && newRect.height > 0) {
-                    chart.applyOptions({ height: newRect.height, width: newRect.width });
-                }
+            // Responsive resize
+            window.addEventListener('resize', () => {
+                const r2 = domElement.getBoundingClientRect();
+                chart.applyOptions({ width: r2.width, height: r2.height });
             });
-            ro.observe(domElement);
-            
-            // Chat Logic
-            const chatInput = document.querySelector('.chat-input');
-            const sendBtn = document.querySelector('.send-btn');
+        }
+
+        // ---- Chat Logic ----
+        function addMessage(text, isUser, htmlContent) {
             const chatHistory = document.getElementById('chat-history');
+            const div = document.createElement('div');
+            div.className = 'message ' + (isUser ? 'msg-user' : 'msg-ai');
+            if (htmlContent) { div.innerHTML = htmlContent; } else { div.innerText = text; }
+            chatHistory.appendChild(div);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
 
-            function addMessage(text, isUser=false, htmlContent=null) {
-                const div = document.createElement('div');
-                div.className = `message ${isUser ? 'msg-user' : 'msg-ai'}`;
-                if (htmlContent) {
-                    div.innerHTML = htmlContent;
-                } else {
-                    div.innerText = text;
-                }
-                chatHistory.appendChild(div);
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-            }
+        async function submitMessage() {
+            const chatInput = document.getElementById('chat-input');
+            const text = chatInput.value.trim();
+            if (!text) return;
 
-            async function submitMessage() {
-                const text = chatInput.value.trim();
-                if(!text) return;
-                
-                addMessage(text, true);
-                chatInput.value = '';
-                
-                // Add loading indicator
-                const loadingId = "load_" + Date.now();
-                addMessage("กำลังคิด...", false, `<div id="${loadingId}" class="jarvis-status"><div class="status-dot"></div> Analyzing Market Data...</div>`);
-                
-                try {
-                    const res = await fetch(`${API_URL}/terminal-chat`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ message: text, symbol: 'XAUUSD', timeframe: 'H1' })
-                    });
-                    const result = await res.json();
-                    
-                    // Remove loading
-                    document.getElementById(loadingId).parentElement.remove();
-                    
-                    if (result && result.reply) {
-                        const r = result.reply;
-                        let html = '';
-                        if (r.strategy) html += `<div class="strategy-tag">${r.strategy}</div>`;
-                        html += `<div>${r.text}</div>`;
-                        
-                        if (r.action) {
-                            html += `
-                            <div class="action-box">
-                                <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px;">Recommended Setup</div>
-                                <div class="action-specs">
-                                    <div class="spec"><span class="spec-label">Action</span> <span class="spec-val buy">${r.action.type}</span></div>
-                                    <div class="spec"><span class="spec-label">Risk</span> <span class="spec-val" style="color:var(--text-main);">${r.action.risk}</span></div>
-                                    <div class="spec"><span class="spec-label">Entry</span> <span class="spec-val">${r.action.entry}</span></div>
-                                    <div class="spec"><span class="spec-label">Volume</span> <span class="spec-val">${r.action.volume}</span></div>
-                                    <div class="spec"><span class="spec-label">Stop Loss</span> <span class="spec-val sl">${r.action.sl}</span></div>
-                                    <div class="spec"><span class="spec-label">Take Profit</span> <span class="spec-val tp">${r.action.tp}</span></div>
-                                </div>
-                                <div style="margin-bottom: 12px; font-size: 0.9rem;">ต้องการให้ผมวางออเดอร์เข้า MT5 เลยไหมครับ?</div>
-                                <div class="action-buttons">
-                                    <button class="btn btn-yes" onclick="executeOrder(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>YES, EXECUTE</button>
-                                    <button class="btn btn-no" onclick="this.parentElement.parentElement.innerHTML='<i>❌ Cancelled by User</i>'">NO, CANCEL</button>
-                                </div>
-                            </div>`;
-                        }
-                        addMessage("", false, html);
-                        
-                        // DRAW LINES ON CHART
-                        if (r.drawings && r.drawings.entry) {
-                            // clear old lines
-                            drawnLines.forEach(l => candleSeries.removePriceLine(l));
-                            drawnLines = [];
-                            
-                            drawnLines.push(candleSeries.createPriceLine({price: r.drawings.entry, color: '#38bdf8', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'ENTRY'}));
-                            drawnLines.push(candleSeries.createPriceLine({price: r.drawings.sl, color: '#ef4444', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: true, title: 'SL'}));
-                            drawnLines.push(candleSeries.createPriceLine({price: r.drawings.tp, color: '#10b981', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: true, title: 'TP'}));
-                        }
+            addMessage(text, true);
+            chatInput.value = '';
+
+            const loadingId = 'load_' + Date.now();
+            addMessage('', false, '<div id="' + loadingId + '" class="jarvis-status"><div class="status-dot"></div> กำลังวิเคราะห์ตลาด...</div>');
+
+            try {
+                const res = await fetch(API_URL + '/terminal-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, symbol: 'XAUUSD', timeframe: 'H1' })
+                });
+                const result = await res.json();
+                var el = document.getElementById(loadingId);
+                if (el && el.parentElement) el.parentElement.remove();
+
+                if (result && result.reply) {
+                    var r = result.reply;
+                    var html = '';
+                    if (r.strategy) html += '<div class="strategy-tag">' + r.strategy + '</div>';
+                    html += '<div>' + r.text + '</div>';
+
+                    if (r.action) {
+                        html += '<div class="action-box">';
+                        html += '<div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:8px">Recommended Setup</div>';
+                        html += '<div class="action-specs">';
+                        html += '<div class="spec"><span class="spec-label">Action</span> <span class="spec-val buy">' + r.action.type + '</span></div>';
+                        html += '<div class="spec"><span class="spec-label">Risk</span> <span class="spec-val" style="color:var(--text-main)">' + r.action.risk + '</span></div>';
+                        html += '<div class="spec"><span class="spec-label">Entry</span> <span class="spec-val">' + r.action.entry + '</span></div>';
+                        html += '<div class="spec"><span class="spec-label">Volume</span> <span class="spec-val">' + r.action.volume + '</span></div>';
+                        html += '<div class="spec"><span class="spec-label">Stop Loss</span> <span class="spec-val sl">' + r.action.sl + '</span></div>';
+                        html += '<div class="spec"><span class="spec-label">Take Profit</span> <span class="spec-val tp">' + r.action.tp + '</span></div>';
+                        html += '</div>';
+                        html += '<div style="margin-bottom:12px;font-size:0.9rem">ต้องการให้ผมวางออเดอร์เข้า MT5 เลยไหมครับ?</div>';
+                        html += '<div class="action-buttons">';
+                        html += '<button class="btn btn-yes" onclick="executeOrder(this)">YES, EXECUTE</button>';
+                        html += '<button class="btn btn-no" onclick="this.parentElement.parentElement.innerHTML=\'❌ Cancelled\'">NO, CANCEL</button>';
+                        html += '</div></div>';
                     }
-                } catch(e) {
-                    document.getElementById(loadingId).parentElement.remove();
-                    addMessage("❌ ขออภัยครับ Server ไม่ตอบสนอง: " + e.message, false);
+                    addMessage('', false, html);
+
+                    if (r.drawings && r.drawings.entry) {
+                        drawnLines.forEach(function(l) { candleSeries.removePriceLine(l); });
+                        drawnLines = [];
+                        drawnLines.push(candleSeries.createPriceLine({ price: r.drawings.entry, color: '#38bdf8', lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: 'ENTRY' }));
+                        drawnLines.push(candleSeries.createPriceLine({ price: r.drawings.sl, color: '#ef4444', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: 'SL' }));
+                        drawnLines.push(candleSeries.createPriceLine({ price: r.drawings.tp, color: '#10b981', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: 'TP' }));
+                    }
                 }
+            } catch (e) {
+                var el2 = document.getElementById(loadingId);
+                if (el2 && el2.parentElement) el2.parentElement.remove();
+                addMessage('❌ Server ไม่ตอบสนอง: ' + e.message, false);
             }
+        }
 
-            window.executeOrder = async function(btn) {
-                btn.innerHTML = "EXECUTING...";
-                try {
-                    const res = await fetch(`${API_URL}/terminal-execute`, { method: 'POST', body: JSON.stringify({}) });
-                    const result = await res.json();
-                    btn.parentElement.innerHTML = `<span style="color:var(--profit-green);"><b>${result.message}</b></span>`;
-                } catch(e) {
-                    btn.innerHTML = "FAILED!";
-                }
-            };
+        function executeOrder(btn) {
+            btn.innerHTML = 'EXECUTING...';
+            fetch(API_URL + '/terminal-execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+                .then(function(res) { return res.json(); })
+                .then(function(result) { btn.parentElement.innerHTML = '<span style="color:var(--profit-green)"><b>' + result.message + '</b></span>'; })
+                .catch(function() { btn.innerHTML = 'FAILED!'; });
+        }
 
-            sendBtn.addEventListener('click', submitMessage);
-            chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitMessage(); });
+        // ---- Init on page load ----
+        document.addEventListener('DOMContentLoaded', function() {
+            // Delay chart init 200ms so Safari has time to compute flex layout
+            setTimeout(initChart, 200);
+
+            // Bind send button (both click + touch for iPad)
+            var sendBtn = document.getElementById('send-btn');
+            var chatInput = document.getElementById('chat-input');
+
+            sendBtn.addEventListener('click', function(e) { e.preventDefault(); submitMessage(); });
+            sendBtn.addEventListener('touchend', function(e) { e.preventDefault(); submitMessage(); });
+            chatInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); submitMessage(); } });
         });
     </script>
 </body>
