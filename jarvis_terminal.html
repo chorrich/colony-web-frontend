@@ -617,6 +617,7 @@
         var currentSymbol = 'XAUUSD';
         var currentTimeframe = 'H1';
         var lastTechnique = null; // Smart Rotation Memory
+        var liveDataInterval = null; // Real-time feed interval
 
         function switchTimeframe(tf, btn) {
             currentTimeframe = tf;
@@ -629,6 +630,10 @@
         async function loadChartData(symbol, timeframe) {
             document.getElementById('live-price').innerText = 'Loading...';
             chart.clearData();
+            
+            // Stop old feed when switching TF
+            if (liveDataInterval) clearInterval(liveDataInterval);
+            
             try {
                 var res = await fetch(API_URL + '/chart-data?symbol=' + symbol + '&timeframe=' + timeframe);
                 var result = await res.json();
@@ -643,6 +648,9 @@
                     }));
                     chart.applyNewData(formatData);
                     document.getElementById('live-price').innerText = result.current_price.toFixed(2);
+                    
+                    // Start Live Feed Polling
+                    startLiveFeed();
                 } else {
                     document.getElementById('live-price').innerText = 'No data';
                 }
@@ -650,6 +658,42 @@
                 console.warn('API fetch error:', e);
                 document.getElementById('live-price').innerText = 'Failed to load';
             }
+        }
+
+        // ---- Live Data Feed (Real-Time Tick) ----
+        function startLiveFeed() {
+            if (liveDataInterval) clearInterval(liveDataInterval);
+            liveDataInterval = setInterval(async function() {
+                try {
+                    // Fetch the absolute latest tick from fast memory cache
+                    var res = await fetch(API_URL + '/api/chart-live?symbol=' + currentSymbol + '&timeframe=' + currentTimeframe + '&limit=1');
+                    var result = await res.json();
+                    
+                    if (result.status === 'ok' && result.candles && result.candles.length > 0) {
+                        var latestCandle = result.candles[0];
+                        
+                        var formatData = {
+                            timestamp: latestCandle.time * 1000,
+                            open: latestCandle.open,
+                            high: latestCandle.high,
+                            low: latestCandle.low,
+                            close: latestCandle.close,
+                            volume: 0
+                        };
+                        
+                        // KLineChart's updateData seamlessly moves the latest candle
+                        chart.updateData(formatData);
+                        document.getElementById('live-price').innerText = latestCandle.close.toFixed(2);
+                        
+                        // Keep AI Boxes in perfect sync if visible scale bounds shift
+                        if (smcDrawings) {
+                            requestAnimationFrame(function() { drawSMCOverlay(smcDrawings); });
+                        }
+                    }
+                } catch(e) {
+                    // Silently fail if server hangs for a second
+                }
+            }, 2000); // Poll every 2 seconds
         }
 
         // ---- Chat Logic ----
