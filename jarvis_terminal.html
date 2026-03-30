@@ -4,12 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Jarvis Trading Terminal | The Colony</title>
-    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <!-- KLineChart for Advanced Professional Charting (Supports Shapes/Drawings) -->
-    <script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
         :root {
@@ -37,7 +34,7 @@
             background-color: var(--bg-dark);
             color: var(--text-main);
             height: 100vh;
-            height: 100dvh; /* dynamic viewport height for mobile Safari */
+            height: 100dvh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -68,7 +65,6 @@
         }
 
         .header-title {
-            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 1rem;
             color: #e5e7eb;
@@ -98,7 +94,7 @@
             display: flex;
             flex: 1;
             overflow: hidden;
-            min-height: 0; /* Important for flex child to not expand implicitly on Safari */
+            min-height: 0;
         }
 
         /* ----- LEFT: CHART AREA ----- */
@@ -134,7 +130,6 @@
         }
 
         .asset-price {
-            font-family: 'Orbitron', sans-serif;
             font-size: 1.1rem;
             color: var(--profit-green);
         }
@@ -161,241 +156,270 @@
             background: rgba(56, 189, 248, 0.05);
         }
 
-        #tv-chart {
+        /* TradingView Widget Container */
+        #tv-chart-widget {
             flex: 1;
             width: 100%;
             position: relative;
-            min-height: 0; /* Crucial for Safari */
+            min-height: 0;
         }
 
-        /* ----- RIGHT: AI CHAT AREA ----- */
+        #tv-chart-widget iframe {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* SMC Analysis Floating Overlay */
+        .smc-overlay {
+            position: absolute;
+            top: 60px;
+            left: 16px;
+            z-index: 20;
+            pointer-events: none;
+            display: none;
+            animation: fadeInOverlay 0.5s ease;
+        }
+
+        .smc-overlay.active {
+            display: block;
+        }
+
+        @keyframes fadeInOverlay {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .smc-card {
+            background: rgba(10, 14, 23, 0.92);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 12px;
+            padding: 14px 18px;
+            min-width: 260px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5), 0 0 15px rgba(56, 189, 248, 0.08);
+            pointer-events: auto;
+        }
+
+        .smc-card-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--jarvis-neon);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .smc-card-close {
+            margin-left: auto;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 1rem;
+            pointer-events: auto;
+        }
+
+        .smc-card-close:hover { color: #fff; }
+
+        .smc-level {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.88rem;
+        }
+
+        .smc-level:last-child { border: none; }
+
+        .smc-level-label { color: var(--text-muted); font-size: 0.78rem; }
+        .smc-level-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .smc-level-val.buy { color: var(--jarvis-neon); }
+        .smc-level-val.sell { color: var(--loss-red); }
+        .smc-level-val.entry { color: var(--gold); }
+        .smc-level-val.sl { color: var(--loss-red); }
+        .smc-level-val.tp { color: var(--profit-green); }
+
+        .smc-tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .smc-tag.buy { background: rgba(56, 189, 248, 0.15); color: var(--jarvis-neon); border: 1px solid rgba(56, 189, 248, 0.3); }
+        .smc-tag.sell { background: rgba(239, 68, 68, 0.15); color: var(--loss-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+        /* ----- RIGHT: CHAT AREA ----- */
         .chat-container {
             flex: 1;
             display: flex;
             flex-direction: column;
             background: var(--bg-panel);
-            min-width: 320px;
-            max-width: 500px;
+            min-width: 0;
+            max-width: 420px;
         }
 
         .chat-header {
             padding: 12px 16px;
+            background: rgba(17, 24, 39, 0.9);
             border-bottom: 1px solid var(--border-color);
             display: flex;
+            gap: 12px;
             align-items: center;
-            gap: 10px;
-            flex-shrink: 0;
         }
 
         .jarvis-avatar {
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--jarvis-blue), #0284c7);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 10px var(--jarvis-glow);
         }
 
         .jarvis-status {
-            font-size: 0.8rem;
-            color: var(--profit-green);
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--profit-green);
         }
-        
+
         .status-dot {
             width: 6px;
             height: 6px;
             background: var(--profit-green);
             border-radius: 50%;
-            box-shadow: 0 0 5px var(--profit-green);
             animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
         .chat-history {
             flex: 1;
             overflow-y: auto;
-            overflow-x: hidden;
             padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            min-height: 0;
+            gap: 12px;
         }
+
+        .chat-history::-webkit-scrollbar { width: 4px; }
+        .chat-history::-webkit-scrollbar-track { background: transparent; }
+        .chat-history::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
 
         .message {
-            max-width: 85%;
             padding: 12px 16px;
             border-radius: 12px;
-            font-size: 0.95rem;
+            max-width: 100%;
+            font-size: 0.9rem;
             line-height: 1.5;
-            position: relative;
-        }
-
-        .msg-user {
-            align-self: flex-end;
-            background: rgba(255, 255, 255, 0.08);
-            border-bottom-right-radius: 2px;
+            word-wrap: break-word;
         }
 
         .msg-ai {
-            align-self: flex-start;
-            background: rgba(14, 165, 233, 0.1);
-            border: 1px solid rgba(14, 165, 233, 0.2);
-            border-bottom-left-radius: 2px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            background: rgba(14, 165, 233, 0.08);
+            border: 1px solid rgba(14, 165, 233, 0.15);
+            border-radius: 12px 12px 12px 4px;
         }
 
-        .msg-ai .strategy-tag {
+        .msg-user {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 12px 12px 4px 12px;
+            align-self: flex-end;
+        }
+
+        .strategy-tag {
             display: inline-block;
-            background: rgba(251, 191, 36, 0.15);
-            color: var(--gold);
-            padding: 2px 8px;
-            border-radius: 12px;
+            padding: 3px 10px;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 20px;
             font-size: 0.75rem;
-            font-weight: 600;
+            color: var(--jarvis-neon);
             margin-bottom: 8px;
-            border: 1px solid rgba(251, 191, 36, 0.3);
         }
 
-        /* Interactive Action Box */
         .action-box {
-            margin-top: 12px;
-            background: rgba(0, 0, 0, 0.3);
+            margin-top: 16px;
+            padding: 14px;
+            background: rgba(10, 14, 23, 0.8);
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px;
+            border-radius: 10px;
         }
 
-        .action-specs {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 12px;
-            font-size: 0.85rem;
-        }
+        .action-specs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+        .spec { display: flex; justify-content: space-between; padding: 4px 0; }
+        .spec-label { font-size: 0.78rem; color: var(--text-muted); }
+        .spec-val { font-weight: 600; font-size: 0.85rem; color: var(--text-main); }
+        .spec-val.buy { color: var(--jarvis-neon); }
+        .spec-val.sl { color: var(--loss-red); }
+        .spec-val.tp { color: var(--profit-green); }
 
-        .spec { display: flex; justify-content: space-between; }
-        .spec-label { color: var(--text-muted); }
-        .spec-val.buy { color: var(--jarvis-neon); font-weight: 600; }
-        .spec-val.sl { color: var(--loss-red); font-family: monospace;}
-        .spec-val.tp { color: var(--profit-green); font-family: monospace;}
-
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.9rem;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .btn-yes {
-            background: var(--jarvis-blue);
-            color: white;
-            box-shadow: 0 0 10px var(--jarvis-glow);
-        }
-        .btn-yes:hover { background: #0284c7; box-shadow: 0 0 15px var(--jarvis-glow); transform: translateY(-1px); }
-
-        .btn-no {
-            background: transparent;
-            color: var(--text-muted);
-            border: 1px solid var(--border-color);
-        }
-        .btn-no:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .action-buttons { display: flex; gap: 8px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; }
+        .btn-yes { background: var(--profit-green); color: #fff; }
+        .btn-yes:hover { background: #059669; }
+        .btn-no { background: rgba(239, 68, 68, 0.15); color: var(--loss-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-no:hover { background: rgba(239, 68, 68, 0.25); }
 
         .chat-input-area {
-            padding: 16px;
+            padding: 12px 16px;
+            background: rgba(17, 24, 39, 0.95);
             border-top: 1px solid var(--border-color);
-            background: rgba(17, 24, 39, 0.9);
-            flex-shrink: 0;
         }
 
         .input-wrapper {
-            position: relative;
             display: flex;
-            align-items: center;
+            gap: 8px;
         }
 
         .chat-input {
-            width: 100%;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
+            flex: 1;
+            padding: 10px 14px;
+            background: rgba(31, 41, 55, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
             color: var(--text-main);
-            padding: 14px 45px 14px 16px;
-            border-radius: 24px;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             outline: none;
-            transition: border-color 0.3s;
+            transition: border 0.2s;
         }
 
-        .chat-input:focus {
-            border-color: var(--jarvis-neon);
-            background: rgba(0,0,0,0.2);
-        }
+        .chat-input:focus { border-color: var(--jarvis-blue); }
 
         .send-btn {
-            position: absolute;
-            right: 8px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--jarvis-blue);
+            padding: 10px 14px;
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
             border: none;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            border-radius: 8px;
+            color: #fff;
             cursor: pointer;
             transition: all 0.2s;
         }
-        .send-btn:hover { background: #0284c7; transform: scale(1.05); }
 
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.5); opacity: 0.7; }
-            100% { transform: scale(1); opacity: 1; }
-        }
+        .send-btn:hover { transform: scale(1.05); }
 
-        /* ---------------- RESPONSIVE (MOBILE) ---------------- */
+        /* Mobile Responsive */
         @media (max-width: 768px) {
-            .workspace {
-                flex-direction: column;
-            }
-            .chart-container {
-                flex: 1;
-                border-right: none;
-                border-bottom: 1px solid var(--jarvis-glow);
-                min-height: 45vh;
-            }
-            .chat-container {
-                flex: 1;
-                max-width: 100%;
-                min-height: 40vh;
-            }
-            .header-title {
-                font-size: 0.9rem;
-            }
+            .workspace { flex-direction: column; }
+            .chart-container { flex: 1; border-right: none; border-bottom: 1px solid var(--border-color); min-height: 45vh; }
+            .chat-container { max-width: none; flex: 1; }
+            .smc-overlay { top: 10px; left: 8px; }
+            .smc-card { min-width: 200px; padding: 10px 14px; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Header -->
     <header class="header">
         <a href="index.html" class="header-logo">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -417,21 +441,27 @@
             <div class="chart-header">
                 <div class="asset-info">
                     <span class="asset-name">XAUUSD</span>
-                    <span class="asset-price" id="live-price">2345.67</span>
+                    <span class="asset-price" id="live-price">Loading...</span>
                 </div>
                 <div class="timeframe-selector">
-                    <button class="tf-btn" onclick="switchTimeframe('M1', this)">M1</button>
-                    <button class="tf-btn" onclick="switchTimeframe('M5', this)">M5</button>
-                    <button class="tf-btn" onclick="switchTimeframe('M15', this)">M15</button>
-                    <button class="tf-btn" onclick="switchTimeframe('M30', this)">M30</button>
-                    <button class="tf-btn active" onclick="switchTimeframe('H1', this)">H1</button>
-                    <button class="tf-btn" onclick="switchTimeframe('H4', this)">H4</button>
-                    <button class="tf-btn" onclick="switchTimeframe('D1', this)">D1</button>
+                    <button class="tf-btn" onclick="switchTimeframe('1', this)">M1</button>
+                    <button class="tf-btn" onclick="switchTimeframe('5', this)">M5</button>
+                    <button class="tf-btn" onclick="switchTimeframe('15', this)">M15</button>
+                    <button class="tf-btn" onclick="switchTimeframe('30', this)">M30</button>
+                    <button class="tf-btn active" onclick="switchTimeframe('60', this)">H1</button>
+                    <button class="tf-btn" onclick="switchTimeframe('240', this)">H4</button>
+                    <button class="tf-btn" onclick="switchTimeframe('D', this)">D1</button>
                 </div>
             </div>
-            <div id="chart-wrapper" style="position:relative; width:100%; flex:1; overflow:hidden;">
-                <div id="tv-chart" style="width:100%; height:100%;"></div>
-                <canvas id="overlay-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10;"></canvas>
+
+            <!-- TradingView Advanced Chart Widget -->
+            <div id="tv-chart-widget"></div>
+
+            <!-- SMC Analysis Floating Overlay (appears when Jarvis analyzes) -->
+            <div class="smc-overlay" id="smc-overlay">
+                <div class="smc-card" id="smc-card">
+                    <!-- Filled dynamically by JS -->
+                </div>
             </div>
         </section>
 
@@ -451,7 +481,8 @@
                 <!-- Welcome Msg -->
                 <div class="message msg-ai">
                     สวัสดีครับ! ผม Jarvis AI พร้อมวิเคราะห์กราฟและส่งคำสั่งเทรดเข้า MT5 ให้ครับ<br><br>
-                    ลองพิมพ์ เช่น <b>"วิเคราะห์ทอง"</b> หรือ <b>"Analyze XAUUSD"</b> ได้เลยครับ 🚀
+                    ลองพิมพ์ เช่น <b>"วิเคราะห์ทอง"</b> หรือ <b>"Analyze XAUUSD"</b> ได้เลยครับ 🚀<br><br>
+                    หรือจะถามเรื่องทั่วไปก็ได้นะครับ ผมตอบได้ทุกเรื่อง! 💬
                 </div>
             </div>
 
@@ -469,231 +500,118 @@
 
     <script>
         const API_URL = "https://web-production-dae6e.up.railway.app";
-        let chart = null;
-        var smcDrawings = null; // Store drawings data for redraw on scroll/zoom
-
-        function initChart() {
-            // Init KLineChart
-            chart = klinecharts.init('tv-chart', {
-                styles: {
-                    grid: { horizontal: { color: '#1f2937' }, vertical: { color: '#1f2937' } },
-                    candle: {
-                        type: 'candle_solid',
-                        bar: { upColor: '#10b981', downColor: '#ef4444', noChangeColor: '#888888', upBorderColor: '#10b981', downBorderColor: '#ef4444', noChangeBorderColor: '#888888', upWickColor: '#10b981', downWickColor: '#ef4444', noChangeWickColor: '#888888' }
-                    },
-                    yAxis: { axisLine: { color: '#1f2937' }, tickText: { color: '#9ca3af' } },
-                    xAxis: { axisLine: { color: '#1f2937' }, tickText: { color: '#9ca3af' } },
-                    separator: { color: '#1f2937' },
-                    crosshair: { horizontal: { lineColor: '#38bdf8' }, vertical: { lineColor: '#38bdf8' } }
-                }
-            });
-
-            // Load real data from Railway backend
-            loadChartData('XAUUSD', 'H1');
-
-            // Responsive resize
-            window.addEventListener('resize', function() {
-                chart.resize();
-                if (smcDrawings) requestAnimationFrame(function() { drawSMCOverlay(smcDrawings); });
-            });
-
-            // Redraw SMC zones whenever chart view changes (scroll, zoom, etc.)
-            chart.subscribeAction('onVisibleRangeChange', function() {
-                if (smcDrawings) requestAnimationFrame(function() { drawSMCOverlay(smcDrawings); });
-            });
-        }
-
-        function resizeOverlayCanvas() {
-            var canvas = document.getElementById('overlay-canvas');
-            var wrapper = document.getElementById('chart-wrapper');
-            canvas.width = wrapper.offsetWidth;
-            canvas.height = wrapper.offsetHeight;
-        }
-
-        function drawSMCOverlay(d) {
-            var canvas = document.getElementById('overlay-canvas');
-            resizeOverlayCanvas();
-            var ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Use KLineChart's convertToPixel for EXACT price → pixel (no manual guessing)
-            var pxEntry = chart.convertToPixel({ value: d.entry }, { paneId: 'candle_pane' });
-            var pxSL = chart.convertToPixel({ value: d.sl }, { paneId: 'candle_pane' });
-            var pxTP = chart.convertToPixel({ value: d.tp }, { paneId: 'candle_pane' });
-
-            if (!pxEntry || !pxSL || !pxTP) return;
-            if (pxEntry.y === undefined || pxSL.y === undefined || pxTP.y === undefined) return;
-
-            var yEntry = pxEntry.y;
-            var ySL = pxSL.y;
-            var yTP = pxTP.y;
-
-            // Chart drawing area width (Y-axis is on the right side)
-            var chartW = canvas.width - 60;
-
-            // ===== 1. ORDER BLOCK BOX (zone_top ↔ zone_bottom from backend) =====
-            // Use precise zone boundaries from the analyzer if available
-            var pxZoneTop, pxZoneBottom;
-            if (d.zone_top && d.zone_bottom) {
-                pxZoneTop = chart.convertToPixel({ value: d.zone_top }, { paneId: 'candle_pane' });
-                pxZoneBottom = chart.convertToPixel({ value: d.zone_bottom }, { paneId: 'candle_pane' });
-            }
-            var yZT = (pxZoneTop && pxZoneTop.y !== undefined) ? pxZoneTop.y : Math.min(yEntry, ySL);
-            var yZB = (pxZoneBottom && pxZoneBottom.y !== undefined) ? pxZoneBottom.y : Math.max(yEntry, ySL);
-
-            var obBoxTop = Math.min(yZT, yZB);
-            var obBoxH = Math.abs(yZB - yZT);
-            var obColor = d.isBuy ? 'rgba(56, 189, 248, 0.18)' : 'rgba(239, 68, 68, 0.18)';
-            var obBorderColor = d.isBuy ? '#38bdf8' : '#ef4444';
-
-            // Filled rectangle
-            ctx.fillStyle = obColor;
-            ctx.fillRect(0, obBoxTop, chartW, obBoxH);
-            // Border
-            ctx.strokeStyle = obBorderColor;
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(0, obBoxTop, chartW, obBoxH);
-            // Label
-            ctx.font = 'bold 12px Inter, sans-serif';
-            ctx.fillStyle = obBorderColor;
-            var obLabelText = d.label || (d.isBuy ? 'Demand Zone' : 'Supply Zone');
-            ctx.fillText(obLabelText, 8, obBoxTop + 16);
-
-            // ===== 2. TP ZONE BOX (Entry ↔ TP) — Green Box =====
-            var tpBoxTop = Math.min(yEntry, yTP);
-            var tpBoxH = Math.abs(yTP - yEntry);
-
-            ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
-            ctx.fillRect(0, tpBoxTop, chartW, tpBoxH);
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(0, tpBoxTop, chartW, tpBoxH);
-            ctx.font = 'bold 12px Inter, sans-serif';
-            ctx.fillStyle = '#10b981';
-            ctx.fillText('Take Profit Zone', 8, tpBoxTop + 16);
-
-            // ===== 3. HORIZONTAL LEVEL LINES (on top of boxes) =====
-            // Entry line
-            ctx.setLineDash([6, 4]);
-            ctx.strokeStyle = obBorderColor;
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(0, yEntry); ctx.lineTo(chartW, yEntry); ctx.stroke();
-            // Entry label
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 11px Inter, sans-serif';
-            var entryLabelW = ctx.measureText('ENTRY ' + d.entry.toFixed(2)).width + 12;
-            ctx.fillStyle = obBorderColor;
-            ctx.fillRect(chartW - entryLabelW - 4, yEntry - 16, entryLabelW + 4, 18);
-            ctx.fillStyle = '#fff';
-            ctx.fillText('ENTRY ' + d.entry.toFixed(2), chartW - entryLabelW, yEntry - 2);
-
-            // SL line
-            ctx.setLineDash([]);
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(0, ySL); ctx.lineTo(chartW, ySL); ctx.stroke();
-            // SL label
-            var slLabelW = ctx.measureText('SL ' + d.sl.toFixed(2)).width + 12;
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(chartW - slLabelW - 4, ySL + 2, slLabelW + 4, 18);
-            ctx.fillStyle = '#fff';
-            ctx.fillText('SL ' + d.sl.toFixed(2), chartW - slLabelW, ySL + 16);
-
-            // TP line
-            ctx.setLineDash([8, 4]);
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(0, yTP); ctx.lineTo(chartW, yTP); ctx.stroke();
-            // TP label
-            var tpLabelW = ctx.measureText('TP ' + d.tp.toFixed(2)).width + 12;
-            ctx.fillStyle = '#10b981';
-            ctx.fillRect(chartW - tpLabelW - 4, yTP - 16, tpLabelW + 4, 18);
-            ctx.fillStyle = '#fff';
-            ctx.fillText('TP ' + d.tp.toFixed(2), chartW - tpLabelW, yTP - 2);
-
-            ctx.setLineDash([]);
-        }
-
+        var smcDrawings = null;
         var currentSymbol = 'XAUUSD';
-        var currentTimeframe = 'H1';
-        var lastTechnique = null; // Smart Rotation Memory
-        var liveDataInterval = null; // Real-time feed interval
+        var currentTimeframe = '60'; // TradingView interval format
+        var lastTechnique = null;
+        var tvWidget = null;
 
-        function switchTimeframe(tf, btn) {
-            currentTimeframe = tf;
-            // Update active button
-            document.querySelectorAll('.tf-btn').forEach(function(b) { b.classList.remove('active'); });
-            btn.classList.add('active');
-            loadChartData(currentSymbol, tf);
-        }
+        // Map TradingView intervals to backend timeframe names
+        const TV_TO_BACKEND = {
+            '1': 'M1', '5': 'M5', '15': 'M15', '30': 'M30',
+            '60': 'H1', '240': 'H4', 'D': 'D1'
+        };
 
-        async function loadChartData(symbol, timeframe) {
-            document.getElementById('live-price').innerText = 'Loading...';
-            chart.clearData();
+        function initTradingViewWidget() {
+            var container = document.getElementById('tv-chart-widget');
             
-            // Stop old feed when switching TF
-            if (liveDataInterval) clearInterval(liveDataInterval);
-            
-            try {
-                var res = await fetch(API_URL + '/chart-data?symbol=' + symbol + '&timeframe=' + timeframe);
-                var result = await res.json();
-                if (result.status === 'ok' && result.candles && result.candles.length > 0) {
-                    var formatData = result.candles.map(c => ({
-                        timestamp: c.time * 1000,
-                        open: c.open,
-                        high: c.high,
-                        low: c.low,
-                        close: c.close,
-                        volume: 0
-                    }));
-                    chart.applyNewData(formatData);
-                    document.getElementById('live-price').innerText = result.current_price.toFixed(2);
-                    
-                    // Start Live Feed Polling
-                    startLiveFeed();
-                } else {
-                    document.getElementById('live-price').innerText = 'No data';
+            // Create TradingView Advanced Chart Widget
+            tvWidget = new TradingView.widget({
+                "autosize": true,
+                "symbol": "OANDA:XAUUSD",
+                "interval": currentTimeframe,
+                "timezone": "Asia/Bangkok",
+                "theme": "dark",
+                "style": "1",
+                "locale": "th_TH",
+                "hide_top_toolbar": false,
+                "hide_legend": false,
+                "save_image": false,
+                "calendar": false,
+                "hide_volume": true,
+                "support_host": "https://www.tradingview.com",
+                "container_id": "tv-chart-widget",
+                "toolbar_bg": "#0a0e17",
+                "enable_publishing": false,
+                "allow_symbol_change": false,
+                "details": false,
+                "hotlist": false,
+                "withdateranges": false,
+                "backgroundColor": "#0a0e17",
+                "gridColor": "#1f2937",
+                "studies": [],
+                "overrides": {
+                    "paneProperties.background": "#0a0e17",
+                    "paneProperties.backgroundType": "solid",
+                    "paneProperties.vertGridProperties.color": "#1f293720",
+                    "paneProperties.horzGridProperties.color": "#1f293720",
+                    "mainSeriesProperties.candleStyle.upColor": "#10b981",
+                    "mainSeriesProperties.candleStyle.downColor": "#ef4444",
+                    "mainSeriesProperties.candleStyle.borderUpColor": "#10b981",
+                    "mainSeriesProperties.candleStyle.borderDownColor": "#ef4444",
+                    "mainSeriesProperties.candleStyle.wickUpColor": "#10b981",
+                    "mainSeriesProperties.candleStyle.wickDownColor": "#ef4444"
                 }
-            } catch(e) {
-                console.warn('API fetch error:', e);
-                document.getElementById('live-price').innerText = 'Failed to load';
-            }
+            });
+
+            // Update live price periodically from TradingView
+            setInterval(updatePriceDisplay, 3000);
         }
 
-        // ---- Live Data Feed (Real-Time Tick) ----
-        function startLiveFeed() {
-            if (liveDataInterval) clearInterval(liveDataInterval);
-            liveDataInterval = setInterval(async function() {
-                try {
-                    // Fetch the absolute latest tick from fast memory cache
-                    var res = await fetch(API_URL + '/api/chart-live?symbol=' + currentSymbol + '&timeframe=' + currentTimeframe + '&limit=1');
-                    var result = await res.json();
-                    
-                    if (result.status === 'ok' && result.candles && result.candles.length > 0) {
-                        var latestCandle = result.candles[0];
-                        
-                        var formatData = {
-                            timestamp: latestCandle.time * 1000,
-                            open: latestCandle.open,
-                            high: latestCandle.high,
-                            low: latestCandle.low,
-                            close: latestCandle.close,
-                            volume: 0
-                        };
-                        
-                        // KLineChart's updateData seamlessly moves the latest candle
-                        chart.updateData(formatData);
-                        document.getElementById('live-price').innerText = latestCandle.close.toFixed(2);
-                        
-                        // Keep AI Boxes in perfect sync if visible scale bounds shift
-                        if (smcDrawings) {
-                            requestAnimationFrame(function() { drawSMCOverlay(smcDrawings); });
-                        }
+        function updatePriceDisplay() {
+            // Fetch current price from our backend (lightweight)
+            fetch(API_URL + '/api/chart-live?symbol=' + currentSymbol + '&timeframe=' + TV_TO_BACKEND[currentTimeframe] + '&limit=1')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.candles && data.candles.length > 0) {
+                        document.getElementById('live-price').innerText = data.candles[0].close.toFixed(2);
                     }
-                } catch(e) {
-                    // Silently fail if server hangs for a second
-                }
-            }, 2000); // Poll every 2 seconds
+                })
+                .catch(() => {});
+        }
+
+        function switchTimeframe(tvInterval, btn) {
+            currentTimeframe = tvInterval;
+            document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // Reload TradingView widget with new interval
+            var container = document.getElementById('tv-chart-widget');
+            container.innerHTML = '';
+            initTradingViewWidget();
+
+            // Hide SMC overlay when switching TF
+            hideSMCOverlay();
+        }
+
+        // ---- SMC Analysis Overlay ----
+        function showSMCOverlay(data) {
+            var overlay = document.getElementById('smc-overlay');
+            var card = document.getElementById('smc-card');
+            
+            var isBuy = data.isBuy;
+            var actionClass = isBuy ? 'buy' : 'sell';
+            var actionText = isBuy ? '🟢 BUY LIMIT' : '🔴 SELL LIMIT';
+            var label = data.label || (isBuy ? 'Demand Zone' : 'Supply Zone');
+
+            card.innerHTML = 
+                '<div class="smc-card-title">' +
+                    '🧠 JARVIS SMC ANALYSIS' +
+                    '<span class="smc-card-close" onclick="hideSMCOverlay()">✕</span>' +
+                '</div>' +
+                '<div class="smc-level"><span class="smc-level-label">Setup</span><span class="smc-level-val">' + label + '</span></div>' +
+                '<div class="smc-level"><span class="smc-level-label">Action</span><span class="smc-level-val ' + actionClass + '">' + actionText + '</span></div>' +
+                '<div class="smc-level"><span class="smc-level-label">Zone</span><span class="smc-level-val">' + (data.zone_bottom || '—') + ' — ' + (data.zone_top || '—') + '</span></div>' +
+                '<div class="smc-level"><span class="smc-level-label">📍 Entry</span><span class="smc-level-val entry">' + data.entry.toFixed(2) + '</span></div>' +
+                '<div class="smc-level"><span class="smc-level-label">🛑 Stop Loss</span><span class="smc-level-val sl">' + data.sl.toFixed(2) + '</span></div>' +
+                '<div class="smc-level"><span class="smc-level-label">🎯 Take Profit</span><span class="smc-level-val tp">' + data.tp.toFixed(2) + '</span></div>' +
+                '<div class="smc-tag ' + actionClass + '">' + (data.technique_name || 'SMC Setup') + '</div>';
+
+            overlay.classList.add('active');
+        }
+
+        function hideSMCOverlay() {
+            document.getElementById('smc-overlay').classList.remove('active');
         }
 
         // ---- Chat Logic ----
@@ -718,10 +636,11 @@
             addMessage('', false, '<div id="' + loadingId + '" class="jarvis-status"><div class="status-dot"></div> กำลังวิเคราะห์ตลาด...</div>');
 
             try {
+                const backendTF = TV_TO_BACKEND[currentTimeframe] || 'H1';
                 const res = await fetch(API_URL + '/terminal-chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, symbol: currentSymbol, timeframe: currentTimeframe, last_technique: lastTechnique })
+                    body: JSON.stringify({ message: text, symbol: currentSymbol, timeframe: backendTF, last_technique: lastTechnique })
                 });
                 const result = await res.json();
                 var el = document.getElementById(loadingId);
@@ -753,22 +672,19 @@
                     }
                     addMessage('', false, html);
 
+                    // Show SMC Floating Overlay on chart
                     if (r.drawings && r.drawings.entry) {
-                        // Clear previous overlays
-                        chart.removeOverlay();
-
-                        // Store drawing data and render canvas overlay
                         smcDrawings = {
                             entry: r.drawings.entry,
                             sl: r.drawings.sl,
                             tp: r.drawings.tp,
-                            ob_time: r.drawings.ob_time,
                             zone_top: r.drawings.zone_top || null,
                             zone_bottom: r.drawings.zone_bottom || null,
                             isBuy: r.drawings.isBuy !== undefined ? r.drawings.isBuy : r.action.type.includes('BUY'),
-                            label: r.drawings.label
+                            label: r.drawings.label,
+                            technique_name: r.strategy || 'SMC Setup'
                         };
-                        drawSMCOverlay(smcDrawings);
+                        showSMCOverlay(smcDrawings);
                     }
                 }
             } catch (e) {
@@ -781,17 +697,15 @@
         function executeOrder(btn) {
             btn.innerHTML = 'EXECUTING...';
             fetch(API_URL + '/terminal-execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-                .then(function(res) { return res.json(); })
-                .then(function(result) { btn.parentElement.innerHTML = '<span style="color:var(--profit-green)"><b>' + result.message + '</b></span>'; })
-                .catch(function() { btn.innerHTML = 'FAILED!'; });
+                .then(r => r.json())
+                .then(result => { btn.parentElement.innerHTML = '<span style="color:var(--profit-green)"><b>' + result.message + '</b></span>'; })
+                .catch(() => { btn.innerHTML = 'FAILED!'; });
         }
 
         // ---- Init on page load ----
         document.addEventListener('DOMContentLoaded', function() {
-            // Delay chart init 200ms so Safari has time to compute flex layout
-            setTimeout(initChart, 200);
+            setTimeout(initTradingViewWidget, 200);
 
-            // Bind send button (both click + touch for iPad)
             var sendBtn = document.getElementById('send-btn');
             var chatInput = document.getElementById('chat-input');
 
@@ -800,5 +714,9 @@
             chatInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); submitMessage(); } });
         });
     </script>
+
+    <!-- TradingView Widget Script -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+
 </body>
 </html>
