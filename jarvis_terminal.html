@@ -777,21 +777,21 @@
                 
                 // 2. ALWAYS Draw Explicit Top/Bottom Lines so the human trader unmistakably sees the box boundaries
                 klineChart.createOverlay({
-                    name: 'simpleLine',
+                    name: 'priceLine',
                     extendData: 'FVG TOP',
                     points: [ { timestamp: startTime, value: top }, { timestamp: endTime, value: top } ],
-                    styles: { line: { color: borderColor, style: 'solid', size: 2 }, text: { color: borderColor, size: 12, weight: 'bold' } }
+                    styles: { line: { color: borderColor, style: 'solid', size: 2 }, text: { color: borderColor, size: 12, weight: 'bold', family: 'Inter' } }
                 });
                 klineChart.createOverlay({
-                    name: 'simpleLine',
+                    name: 'priceLine',
                     extendData: 'FVG BTM',
                     points: [ { timestamp: startTime, value: bottom }, { timestamp: endTime, value: bottom } ],
-                    styles: { line: { color: borderColor, style: 'solid', size: 2 }, text: { color: borderColor, size: 12, weight: 'bold' } }
+                    styles: { line: { color: borderColor, style: 'solid', size: 2 }, text: { color: borderColor, size: 12, weight: 'bold', family: 'Inter' } }
                 });
                 
                 // 3. Draw SL Line
                 klineChart.createOverlay({
-                    name: 'simpleLine',
+                    name: 'priceLine',
                     extendData: 'SL ' + data.sl.toFixed(2),
                     points: [
                         { timestamp: startTime, value: data.sl },
@@ -805,7 +805,7 @@
                 
                 // 4. Draw TP Line
                 klineChart.createOverlay({
-                    name: 'simpleLine',
+                    name: 'priceLine',
                     extendData: 'TP ' + data.tp.toFixed(2),
                     points: [
                         { timestamp: startTime, value: data.tp },
