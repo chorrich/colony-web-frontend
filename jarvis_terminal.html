@@ -554,72 +554,115 @@
     </main>
 
     <script>
-        const API_URL = "https://web-production-dae6e.up.railway.app"; // ชี้ไปยังเซิฟเวอร์ Railway ตัวจริง
+        const API_URL = "http://127.0.0.1:5000"; // เปลี่ยนกลับมาเชื่อมเซิร์ฟเวอร์ในแอดมิน เพื่อแก้ปัญหา 404 Vercel ยังไม่ถูกสร้าง
         var smcDrawings = null;
         var currentSymbol = 'XAUUSD';
         var currentTimeframe = '60'; // TradingView interval format
         var lastTechnique = null;
-        var tvWidget = null;
+        var klineChart = null;
+        var liveChartInterval = null;
 
-        // Map TradingView intervals to backend timeframe names
-        const TV_TO_BACKEND = {
-            '1': 'M1', '5': 'M5', '15': 'M15', '30': 'M30',
-            '60': 'H1', '240': 'H4', 'D': 'D1'
+        // Map UI TF sizes to milliseconds for drawing overlays into the future gracefully
+        const TF_MS = {
+            '1': 60000, '5': 300000, '15': 900000, '30': 1800000,
+            '60': 3600000, '240': 14400000, 'D': 86400000
         };
 
-        function initTradingViewWidget() {
+        function initChartWidget() {
             var container = document.getElementById('tv-chart-widget');
             
-            // Create TradingView Advanced Chart Widget
-            tvWidget = new TradingView.widget({
-                "autosize": true,
-                "symbol": "OANDA:XAUUSD",
-                "interval": currentTimeframe,
-                "timezone": "Asia/Bangkok",
-                "theme": "dark",
-                "style": "1",
-                "locale": "th_TH",
-                "hide_top_toolbar": false,
-                "hide_legend": false,
-                "save_image": false,
-                "calendar": false,
-                "hide_volume": true,
-                "support_host": "https://www.tradingview.com",
-                "container_id": "tv-chart-widget",
-                "toolbar_bg": "#0a0e17",
-                "enable_publishing": false,
-                "allow_symbol_change": false,
-                "details": false,
-                "hotlist": false,
-                "withdateranges": false,
-                "backgroundColor": "#0a0e17",
-                "gridColor": "#1f2937",
-                "studies": [],
-                "overrides": {
-                    "paneProperties.background": "#0a0e17",
-                    "paneProperties.backgroundType": "solid",
-                    "paneProperties.vertGridProperties.color": "#1f293720",
-                    "paneProperties.horzGridProperties.color": "#1f293720",
-                    "mainSeriesProperties.candleStyle.upColor": "#10b981",
-                    "mainSeriesProperties.candleStyle.downColor": "#ef4444",
-                    "mainSeriesProperties.candleStyle.borderUpColor": "#10b981",
-                    "mainSeriesProperties.candleStyle.borderDownColor": "#ef4444",
-                    "mainSeriesProperties.candleStyle.wickUpColor": "#10b981",
-                    "mainSeriesProperties.candleStyle.wickDownColor": "#ef4444"
+            // Initialize KLineChart
+            klineChart = klinecharts.init('tv-chart-widget', {
+                grid: {
+                    show: true,
+                    horizontal: { color: '#1f293720' },
+                    vertical: { color: '#1f293720' }
+                },
+                candle: {
+                    type: 'candle_solid',
+                    bar: {
+                        upColor: '#10b981',
+                        downColor: '#ef4444',
+                        noChangeColor: '#888888',
+                        upBorderColor: '#10b981',
+                        downBorderColor: '#ef4444',
+                        noChangeBorderColor: '#888888',
+                        upWickColor: '#10b981',
+                        downWickColor: '#ef4444',
+                        noChangeWickColor: '#888888'
+                    },
+                    tooltip: {
+                         showRule: 'always',
+                         showType: 'standard',
+                         custom: function(calcData) {
+                              const current = calcData.current;
+                              if (current) {
+                                  // Update header live price dynamically when hovering or displaying current
+                                  document.getElementById('live-price').innerText = current.close.toFixed(2);
+                              }
+                              return [];
+                         }
+                    }
+                },
+                yAxis: {
+                    position: 'right',
+                    tickText: { color: '#9ca3af' }
+                },
+                xAxis: {
+                    tickText: { color: '#9ca3af' }
                 }
             });
 
-            // Update live price periodically from TradingView
-            setInterval(updatePriceDisplay, 3000);
+            klineChart.setStyles({
+                polygon: { color: '#10b981' } // General config
+            });
+
+            // Fetch History Data (1 Time)
+            fetchHistory();
         }
 
-        function updatePriceDisplay() {
-            // Fetch current price from our backend (lightweight)
+        function fetchHistory() {
+            fetch(API_URL + '/chart-data?symbol=' + currentSymbol + '&timeframe=' + TV_TO_BACKEND[currentTimeframe])
+                .then(r => r.json())
+                .then(data => {
+                    if (data.candles && data.candles.length > 0) {
+                        const formatted = data.candles.map(c => ({
+                            timestamp: c.time * 1000,
+                            open: c.open,
+                            high: c.high,
+                            low: c.low,
+                            close: c.close,
+                            volume: 0
+                        }));
+                        klineChart.applyNewData(formatted);
+                        
+                        document.getElementById('live-price').innerText = formatted[formatted.length-1].close.toFixed(2);
+                        
+                        // Start Micro-Patching Streaming (Only ask for the latest tick)
+                        if (liveChartInterval) clearInterval(liveChartInterval);
+                        liveChartInterval = setInterval(streamLiveCandle, 1000);
+                    }
+                })
+                .catch(e => console.error("KLine History Load Error:", e));
+        }
+
+        function streamLiveCandle() {
+            // 0ms In-Memory cache call from backend (limit=1)
             fetch(API_URL + '/api/chart-live?symbol=' + currentSymbol + '&timeframe=' + TV_TO_BACKEND[currentTimeframe] + '&limit=1')
                 .then(r => r.json())
                 .then(data => {
                     if (data.candles && data.candles.length > 0) {
-                        document.getElementById('live-price').innerText = data.candles[0].close.toFixed(2);
+                        const c = data.candles[0];
+                        klineChart.updateData({
+                            timestamp: c.time * 1000,
+                            open: c.open,
+                            high: c.high,
+                            low: c.low,
+                            close: c.close,
+                            volume: 0
+                        });
+                        // Automatically update top bar text
+                        document.getElementById('live-price').innerText = c.close.toFixed(2);
                     }
                 })
                 .catch(() => {});
@@ -630,10 +673,11 @@
             document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             
-            // Reload TradingView widget with new interval
+            // Reload KLineChart with new interval
+            if (liveChartInterval) clearInterval(liveChartInterval);
             var container = document.getElementById('tv-chart-widget');
             container.innerHTML = '';
-            initTradingViewWidget();
+            initChartWidget();
 
             // Hide SMC overlay when switching TF
             hideSMCOverlay();
@@ -663,10 +707,70 @@
                 '<div class="smc-tag ' + actionClass + '">' + (data.technique_name || 'SMC Setup') + '</div>';
 
             overlay.classList.add('active');
+
+            // --- Draw on KLineChart directly! ---
+            if (klineChart && data.zone_top && data.zone_bottom && data.ob_time) {
+                // Clear old drawings
+                klineChart.removeOverlay();
+                
+                var top = data.zone_top;
+                var bottom = data.zone_bottom;
+                var color = isBuy ? 'rgba(56, 189, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+                var borderColor = isBuy ? '#38bdf8' : '#ef4444';
+                
+                var startTime = data.ob_time; // ms
+                var endTime = Date.now() + (TF_MS[currentTimeframe] || 3600000) * 5; // extend 5 bars to the right
+                
+                // 1. Draw Rect (Zone)
+                klineChart.createOverlay({
+                    name: 'rect',
+                    points: [
+                        { timestamp: startTime, value: top },
+                        { timestamp: endTime, value: bottom }
+                    ],
+                    styles: {
+                        polygon: { color: color, borderWidth: 1, borderColor: color }
+                    }
+                });
+                
+                // 2. Draw SL Line
+                klineChart.createOverlay({
+                    name: 'simpleLine',
+                    extendData: 'SL ' + data.sl.toFixed(2),
+                    points: [
+                        { timestamp: startTime, value: data.sl },
+                        { timestamp: endTime, value: data.sl }
+                    ],
+                    styles: {
+                        line: { color: '#ef4444', style: 'dashed', size: 1 },
+                        text: { color: '#ef4444', size: 12 }
+                    }
+                });
+                
+                // 3. Draw TP Line
+                klineChart.createOverlay({
+                    name: 'simpleLine',
+                    extendData: 'TP ' + data.tp.toFixed(2),
+                    points: [
+                        { timestamp: startTime, value: data.tp },
+                        { timestamp: endTime, value: data.tp }
+                    ],
+                    styles: {
+                        line: { color: '#10b981', style: 'dashed', size: 1 },
+                        text: { color: '#10b981', size: 12 }
+                    }
+                });
+                
+                // Also scroll slightly to the zone origin so the user sees it
+                // We'll let KLineChart handle the view but this adds the raw visual feedback
+            }
         }
 
         function hideSMCOverlay() {
             document.getElementById('smc-overlay').classList.remove('active');
+            if (klineChart) {
+                klineChart.removeOverlay();
+            }
         }
 
         // ---- Chat Logic ----
@@ -786,8 +890,8 @@
         }
 
         // ---- Init on page load ----
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(initTradingViewWidget, 200);
+        window.addEventListener('load', function() {
+            setTimeout(initChartWidget, 200);
 
             var sendBtn = document.getElementById('send-btn');
             var chatInput = document.getElementById('chat-input');
@@ -831,8 +935,8 @@
         });
     </script>
 
-    <!-- TradingView Widget Script -->
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <!-- KLineChart Core Library -->
+    <script src="https://cdn.jsdelivr.net/npm/klinecharts@9.2.2/dist/klinecharts.min.js"></script>
 
 </body>
 </html>
