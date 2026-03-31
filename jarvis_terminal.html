@@ -577,32 +577,36 @@
         function initChartWidget() {
             var container = document.getElementById('tv-chart-widget');
             
-            // Register custom overlay for Zone drawing
-            klinecharts.registerOverlay({
-                name: 'smcZone',
-                needDefaultPointFigure: true,
-                needDefaultXAxisFigure: true,
-                needDefaultYAxisFigure: true,
-                createPointFigures: function ({ coordinates }) {
-                    if (coordinates.length === 2) {
-                        return [
-                            {
-                                type: 'polygon',
-                                attrs: {
-                                    coordinates: [
-                                        coordinates[0],
-                                        { x: coordinates[1].x, y: coordinates[0].y },
-                                        coordinates[1],
-                                        { x: coordinates[0].x, y: coordinates[1].y }
-                                    ]
-                                },
-                                styles: { style: 'fill' }
-                            }
-                        ];
+            // Register custom overlay for Zone drawing, wrapped to prevent crashing older KLineCharts versions
+            try {
+                klinecharts.registerOverlay({
+                    name: 'smcZone',
+                    needDefaultPointFigure: true,
+                    needDefaultXAxisFigure: true,
+                    needDefaultYAxisFigure: true,
+                    createPointFigures: function ({ coordinates }) {
+                        if (coordinates && coordinates.length === 2) {
+                            return [
+                                {
+                                    type: 'polygon',
+                                    attrs: {
+                                        coordinates: [
+                                            coordinates[0],
+                                            { x: coordinates[1].x, y: coordinates[0].y },
+                                            coordinates[1],
+                                            { x: coordinates[0].x, y: coordinates[1].y }
+                                        ]
+                                    },
+                                    styles: { style: 'fill' }
+                                }
+                            ];
+                        }
+                        return [];
                     }
-                    return [];
-                }
-            });
+                });
+            } catch (e) {
+                console.warn('SMC Zone overlay registration unsupported:', e);
+            }
 
             // Initialize KLineChart
             klineChart = klinecharts.init('tv-chart-widget', {
@@ -755,16 +759,33 @@
                 var endTime = Date.now() + (TF_MS[currentTimeframe] || 3600000) * 5; // extend 5 bars to the right
                 
                 // 1. Draw Rect (Zone)
-                klineChart.createOverlay({
-                    name: 'smcZone',
-                    points: [
-                        { timestamp: startTime, value: top },
-                        { timestamp: endTime, value: bottom }
-                    ],
-                    styles: {
-                        polygon: { color: color, borderWidth: 1, borderColor: borderColor }
-                    }
-                });
+                try {
+                    klineChart.createOverlay({
+                        name: 'smcZone',
+                        points: [
+                            { timestamp: startTime, value: top },
+                            { timestamp: endTime, value: bottom }
+                        ],
+                        styles: {
+                            polygon: { color: color, borderWidth: 1, borderColor: borderColor }
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Falling back to Zone lines:', e);
+                    // Fallback boundaries if polygon isn't supported
+                    klineChart.createOverlay({
+                        name: 'simpleLine',
+                        extendData: 'ZONE TOP',
+                        points: [ { timestamp: startTime, value: top }, { timestamp: endTime, value: top } ],
+                        styles: { line: { color: borderColor, style: 'solid', size: 1 }, text: { color: borderColor, size: 10 } }
+                    });
+                    klineChart.createOverlay({
+                        name: 'simpleLine',
+                        extendData: 'ZONE BOTTOM',
+                        points: [ { timestamp: startTime, value: bottom }, { timestamp: endTime, value: bottom } ],
+                        styles: { line: { color: borderColor, style: 'solid', size: 1 }, text: { color: borderColor, size: 10 } }
+                    });
+                }
                 
                 // 2. Draw SL Line
                 klineChart.createOverlay({
