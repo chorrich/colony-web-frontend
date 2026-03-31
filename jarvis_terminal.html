@@ -416,9 +416,61 @@
             .smc-overlay { top: 10px; left: 8px; }
             .smc-card { min-width: 200px; padding: 10px 14px; }
         }
+
+        /* Login Overlay */
+        .login-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 14, 23, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-box {
+            background: #111827;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .login-box h2 {
+            color: #fff; text-align: center; margin-bottom: 20px; font-weight: 600; font-size: 1.4rem;
+        }
+        .login-input {
+            width: 100%; padding: 12px; margin-bottom: 15px;
+            background: rgba(31, 41, 55, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 8px; color: #fff; outline: none;
+        }
+        .login-input:focus { border-color: var(--jarvis-neon); }
+        .login-btn {
+            width: 100%; padding: 12px;
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer;
+        }
     </style>
 </head>
 <body>
+
+    <div class="login-overlay" id="login-overlay">
+        <div class="login-box">
+            <div style="text-align:center; margin-bottom: 10px;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <h2>Authenticating Jarvis</h2>
+            <div style="color: var(--text-muted); font-size: 0.85rem; text-align: center; margin-bottom: 20px;">
+                Secured Connection with MT5/MetaApi
+            </div>
+            <input type="text" id="login-account" class="login-input" placeholder="MT5 Account ID">
+            <input type="password" id="login-password" class="login-input" placeholder="Auth / MetaApi Password">
+            <button class="login-btn" id="login-submit" onclick="submitLogin()">CONNECT BROKER</button>
+            <div id="login-error" style="color: var(--loss-red); text-align: center; margin-top: 10px; font-size: 0.85rem; display: none;"></div>
+        </div>
+    </div>
 
     <header class="header">
         <a href="index.html" class="header-logo">
@@ -488,6 +540,9 @@
 
             <div class="chat-input-area">
                 <div class="input-wrapper">
+                    <button id="mic-btn" class="send-btn" type="button" style="background: rgba(255,255,255,0.1); color: var(--text-muted);" title="สั่งการด้วยเสียง (Voice Command)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                    </button>
                     <input type="text" id="chat-input" class="chat-input" placeholder="พิมพ์ข้อความถาม Jarvis...">
                     <button id="send-btn" class="send-btn" type="button">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -499,7 +554,7 @@
     </main>
 
     <script>
-        const API_URL = "https://web-production-dae6e.up.railway.app";
+        const API_URL = "https://web-production-dae6e.up.railway.app"; // ชี้ไปยังเซิฟเวอร์ Railway ตัวจริง
         var smcDrawings = null;
         var currentSymbol = 'XAUUSD';
         var currentTimeframe = '60'; // TradingView interval format
@@ -615,6 +670,28 @@
         }
 
         // ---- Chat Logic ----
+        function submitLogin() {
+            var acc = document.getElementById('login-account').value;
+            var pwd = document.getElementById('login-password').value;
+            if (!acc || !pwd) {
+                document.getElementById('login-error').innerText = 'กรุณากรอก Account และ Password ให้ครบถ้วน';
+                document.getElementById('login-error').style.display = 'block';
+                return;
+            }
+            
+            // For MVP UI, store session and hide
+            sessionStorage.setItem('mt5_account', acc);
+            sessionStorage.setItem('auth_key', pwd);
+            
+            document.getElementById('login-overlay').style.display = 'none';
+        }
+
+        // Check login on load
+        if (sessionStorage.getItem('mt5_account')) {
+            var el = document.getElementById('login-overlay');
+            if (el) el.style.display = 'none';
+        }
+
         function addMessage(text, isUser, htmlContent) {
             const chatHistory = document.getElementById('chat-history');
             const div = document.createElement('div');
@@ -640,7 +717,13 @@
                 const res = await fetch(API_URL + '/terminal-chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, symbol: currentSymbol, timeframe: backendTF, last_technique: lastTechnique })
+                    body: JSON.stringify({ 
+                        message: text, 
+                        symbol: currentSymbol, 
+                        timeframe: backendTF, 
+                        last_technique: lastTechnique,
+                        account: sessionStorage.getItem('mt5_account_id')
+                    })
                 });
                 const result = await res.json();
                 var el = document.getElementById(loadingId);
@@ -712,6 +795,39 @@
             sendBtn.addEventListener('click', function(e) { e.preventDefault(); submitMessage(); });
             sendBtn.addEventListener('touchend', function(e) { e.preventDefault(); submitMessage(); });
             chatInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); submitMessage(); } });
+
+            // Voice Speech API (Thai)
+            var micBtn = document.getElementById('mic-btn');
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                var recognition = new SpeechRecognition();
+                recognition.lang = 'th-TH';
+                recognition.interimResults = false;
+                
+                recognition.onstart = function() {
+                    micBtn.style.background = 'var(--loss-red)';
+                    micBtn.style.color = '#fff';
+                    chatInput.placeholder = "กำลังฟัง...";
+                };
+                
+                recognition.onresult = function(event) {
+                    var text = event.results[0][0].transcript;
+                    chatInput.value = text;
+                    submitMessage();
+                };
+                
+                recognition.onend = function() {
+                    micBtn.style.background = 'rgba(255,255,255,0.1)';
+                    micBtn.style.color = 'var(--text-muted)';
+                    chatInput.placeholder = "พิมพ์ข้อความถาม Jarvis...";
+                };
+                
+                micBtn.addEventListener('click', function() {
+                    recognition.start();
+                });
+            } else {
+                micBtn.style.display = 'none';
+            }
         });
     </script>
 
