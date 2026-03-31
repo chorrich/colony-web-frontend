@@ -581,11 +581,12 @@
             try {
                 klinecharts.registerOverlay({
                     name: 'smcZone',
+                    totalStep: 3,
                     needDefaultPointFigure: true,
                     needDefaultXAxisFigure: true,
                     needDefaultYAxisFigure: true,
                     createPointFigures: function ({ coordinates }) {
-                        if (coordinates && coordinates.length === 2) {
+                        if (coordinates && coordinates.length >= 2) {
                             return [
                                 {
                                     type: 'polygon',
@@ -597,7 +598,7 @@
                                             { x: coordinates[0].x, y: coordinates[1].y }
                                         ]
                                     },
-                                    styles: { style: 'fill' }
+                                    styles: { style: 'fill_stroke' }
                                 }
                             ];
                         }
@@ -752,13 +753,15 @@
                 
                 var top = data.zone_top || Math.max(data.entry, data.sl);
                 var bottom = data.zone_bottom || Math.min(data.entry, data.sl);
-                var color = isBuy ? 'rgba(56, 189, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-                var borderColor = isBuy ? '#38bdf8' : '#ef4444';
+                
+                // Vibrant colors for human visibility
+                var fillColor = isBuy ? 'rgba(0, 255, 128, 0.35)' : 'rgba(255, 50, 50, 0.35)';
+                var borderColor = isBuy ? '#00ff80' : '#ff3232';
                 
                 var startTime = data.ob_time || (Date.now() - (TF_MS[currentTimeframe] || 3600000) * 3); // ms
-                var endTime = Date.now() + (TF_MS[currentTimeframe] || 3600000) * 5; // extend 5 bars to the right
+                var endTime = Date.now() + (TF_MS[currentTimeframe] || 3600000) * 8; // extend 8 bars to the right
                 
-                // 1. Draw Rect (Zone)
+                // 1. Draw Rect (Zone) - Try Polygon first
                 try {
                     klineChart.createOverlay({
                         name: 'smcZone',
@@ -767,27 +770,26 @@
                             { timestamp: endTime, value: bottom }
                         ],
                         styles: {
-                            polygon: { color: color, borderWidth: 1, borderColor: borderColor }
+                            polygon: { color: fillColor, borderColor: borderColor, borderSize: 2, borderStyle: 'solid' }
                         }
                     });
-                } catch (e) {
-                    console.warn('Falling back to Zone lines:', e);
-                    // Fallback boundaries if polygon isn't supported
-                    klineChart.createOverlay({
-                        name: 'simpleLine',
-                        extendData: 'ZONE TOP',
-                        points: [ { timestamp: startTime, value: top }, { timestamp: endTime, value: top } ],
-                        styles: { line: { color: borderColor, style: 'solid', size: 1 }, text: { color: borderColor, size: 10 } }
-                    });
-                    klineChart.createOverlay({
-                        name: 'simpleLine',
-                        extendData: 'ZONE BOTTOM',
-                        points: [ { timestamp: startTime, value: bottom }, { timestamp: endTime, value: bottom } ],
-                        styles: { line: { color: borderColor, style: 'solid', size: 1 }, text: { color: borderColor, size: 10 } }
-                    });
-                }
+                } catch (e) { console.warn("Polygon overlay failed:", e); }
                 
-                // 2. Draw SL Line
+                // 2. ALWAYS Draw Explicit Top/Bottom Lines so the human trader unmistakably sees the box boundaries
+                klineChart.createOverlay({
+                    name: 'simpleLine',
+                    extendData: 'FVG TOP',
+                    points: [ { timestamp: startTime, value: top }, { timestamp: endTime, value: top } ],
+                    styles: { line: { color: borderColor, style: 'solid', size: 2 }, text: { color: borderColor, size: 12, weight: 'bold' } }
+                });
+                klineChart.createOverlay({
+                    name: 'simpleLine',
+                    extendData: 'FVG BTM',
+                    points: [ { timestamp: startTime, value: bottom }, { timestamp: endTime, value: bottom } ],
+                    styles: { line: { color: borderColor, style: 'solid', size: 2 }, text: { color: borderColor, size: 12, weight: 'bold' } }
+                });
+                
+                // 3. Draw SL Line
                 klineChart.createOverlay({
                     name: 'simpleLine',
                     extendData: 'SL ' + data.sl.toFixed(2),
@@ -796,12 +798,12 @@
                         { timestamp: endTime, value: data.sl }
                     ],
                     styles: {
-                        line: { color: '#ef4444', style: 'dashed', size: 1 },
-                        text: { color: '#ef4444', size: 12 }
+                        line: { color: '#ef4444', style: 'dashed', size: 2 },
+                        text: { color: '#ef4444', size: 12, weight: 'bold' }
                     }
                 });
                 
-                // 3. Draw TP Line
+                // 4. Draw TP Line
                 klineChart.createOverlay({
                     name: 'simpleLine',
                     extendData: 'TP ' + data.tp.toFixed(2),
@@ -810,8 +812,8 @@
                         { timestamp: endTime, value: data.tp }
                     ],
                     styles: {
-                        line: { color: '#10b981', style: 'dashed', size: 1 },
-                        text: { color: '#10b981', size: 12 }
+                        line: { color: '#10b981', style: 'dashed', size: 2 },
+                        text: { color: '#10b981', size: 12, weight: 'bold' }
                     }
                 });
                 
