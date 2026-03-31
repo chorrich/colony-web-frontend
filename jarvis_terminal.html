@@ -577,6 +577,33 @@
         function initChartWidget() {
             var container = document.getElementById('tv-chart-widget');
             
+            // Register custom overlay for Zone drawing
+            klinecharts.registerOverlay({
+                name: 'smcZone',
+                needDefaultPointFigure: true,
+                needDefaultXAxisFigure: true,
+                needDefaultYAxisFigure: true,
+                createPointFigures: function ({ coordinates }) {
+                    if (coordinates.length === 2) {
+                        return [
+                            {
+                                type: 'polygon',
+                                attrs: {
+                                    coordinates: [
+                                        coordinates[0],
+                                        { x: coordinates[1].x, y: coordinates[0].y },
+                                        coordinates[1],
+                                        { x: coordinates[0].x, y: coordinates[1].y }
+                                    ]
+                                },
+                                styles: { style: 'fill' }
+                            }
+                        ];
+                    }
+                    return [];
+                }
+            });
+
             // Initialize KLineChart
             klineChart = klinecharts.init('tv-chart-widget', {
                 grid: {
@@ -715,27 +742,27 @@
             overlay.classList.add('active');
 
             // --- Draw on KLineChart directly! ---
-            if (klineChart && data.zone_top && data.zone_bottom && data.ob_time) {
+            if (klineChart && data.entry && data.sl) {
                 // Clear old drawings
                 klineChart.removeOverlay();
                 
-                var top = data.zone_top;
-                var bottom = data.zone_bottom;
+                var top = data.zone_top || Math.max(data.entry, data.sl);
+                var bottom = data.zone_bottom || Math.min(data.entry, data.sl);
                 var color = isBuy ? 'rgba(56, 189, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)';
                 var borderColor = isBuy ? '#38bdf8' : '#ef4444';
                 
-                var startTime = data.ob_time; // ms
+                var startTime = data.ob_time || (Date.now() - (TF_MS[currentTimeframe] || 3600000) * 3); // ms
                 var endTime = Date.now() + (TF_MS[currentTimeframe] || 3600000) * 5; // extend 5 bars to the right
                 
                 // 1. Draw Rect (Zone)
                 klineChart.createOverlay({
-                    name: 'rect',
+                    name: 'smcZone',
                     points: [
                         { timestamp: startTime, value: top },
                         { timestamp: endTime, value: bottom }
                     ],
                     styles: {
-                        polygon: { color: color, borderWidth: 1, borderColor: color }
+                        polygon: { color: color, borderWidth: 1, borderColor: borderColor }
                     }
                 });
                 
@@ -866,15 +893,15 @@
                     addMessage('', false, html);
 
                     // Show SMC Floating Overlay on chart
-                    if (r.drawings && r.drawings.entry) {
+                    if (r.action && r.action.entry) {
                         smcDrawings = {
-                            entry: r.drawings.entry,
-                            sl: r.drawings.sl,
-                            tp: r.drawings.tp,
-                            zone_top: r.drawings.zone_top || null,
-                            zone_bottom: r.drawings.zone_bottom || null,
-                            isBuy: r.drawings.isBuy !== undefined ? r.drawings.isBuy : r.action.type.includes('BUY'),
-                            label: r.drawings.label,
+                            entry: r.action.entry,
+                            sl: r.action.sl,
+                            tp: r.action.tp,
+                            zone_top: r.action.zone_top || null,
+                            zone_bottom: r.action.zone_bottom || null,
+                            isBuy: (r.action.type || '').includes('BUY'),
+                            label: r.strategy || 'SMC Setup',
                             technique_name: r.strategy || 'SMC Setup'
                         };
                         showSMCOverlay(smcDrawings);
