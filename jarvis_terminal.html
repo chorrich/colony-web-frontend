@@ -873,6 +873,17 @@
             addMessage('', false, '<div id="' + loadingId + '" class="jarvis-status"><div class="status-dot"></div> กำลังวิเคราะห์ตลาด...</div>');
 
             try {
+                // Get current chart context to prevent AI from hallucinating prices
+                var dataList = klineChart ? klineChart.getDataList() : [];
+                var current_price = null, recent_high = null, recent_low = null;
+                if (dataList.length > 0) {
+                    var lastCandle = dataList[dataList.length - 1];
+                    current_price = lastCandle.close;
+                    var recentCandles = dataList.slice(-30); // Look at last 30 bars
+                    recent_high = Math.max(...recentCandles.map(d => d.high));
+                    recent_low = Math.min(...recentCandles.map(d => d.low));
+                }
+
                 const backendTF = TV_TO_BACKEND[currentTimeframe] || 'H1';
                 const res = await fetch(API_URL + '/terminal-chat', {
                     method: 'POST',
@@ -882,7 +893,10 @@
                         symbol: currentSymbol, 
                         timeframe: backendTF, 
                         last_technique: lastTechnique,
-                        account: sessionStorage.getItem('mt5_account')
+                        account: sessionStorage.getItem('mt5_account'),
+                        current_price: current_price,
+                        recent_high: recent_high,
+                        recent_low: recent_low
                     })
                 });
                 const result = await res.json();
