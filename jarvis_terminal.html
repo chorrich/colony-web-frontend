@@ -562,6 +562,12 @@
         var klineChart = null;
         var liveChartInterval = null;
 
+        // Map TradingView intervals to backend timeframe names
+        const TV_TO_BACKEND = {
+            '1': 'M1', '5': 'M5', '15': 'M15', '30': 'M30',
+            '60': 'H1', '240': 'H4', 'D': 'D1'
+        };
+
         // Map UI TF sizes to milliseconds for drawing overlays into the future gracefully
         const TF_MS = {
             '1': 60000, '5': 300000, '15': 900000, '30': 1800000,
